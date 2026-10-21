@@ -62,3 +62,30 @@ shipped in the runtime; the plugin's MIT license does not replace them.
 The private installation does not modify system PATH or Cinema 4D's Python.
 Existing compatible AI environments may continue using their original Python
 distribution and its associated licenses instead.
+
+## Additional attribution and runtime license audit (0.5.1)
+
+The reference-camera token interpretation in `source_camera.py` follows
+TripoSplat-Training (VAST / Microsoft). Its MIT notice is preserved in
+`licenses/TripoSplat-Training-LICENSE.txt`. This does not imply that the full
+training pipeline or its dependencies are included in Argentum Splat.
+
+`tqdm` 4.67.1 uses MIT for its original contributions and MPL-2.0 for other
+contributions; the upstream notice is now included in `licenses/tqdm-LICENCE.txt`.
+The inspected wheel did not contain a standalone license file. We do not modify
+or redistribute that wheel. MPL-covered source remains available upstream.
+
+PyTorch's BSD-3-Clause label does not cover every bundled component. Its wheel
+contains a long LICENSE and NOTICE, including NVIDIA component terms. NumPy,
+Pillow, CPython, Node.js, pip and setuptools also contain third-party components.
+Keep their complete license bundles; do not replace them with this project's MIT
+license. The PyAV Windows runtime examined for this release reports FFmpeg
+LGPL-3.0-or-later. Binary build flags also list x264/x265; the report is not an
+independent validation of the upstream codec build's licensing. We do not
+redistribute those DLLs or promise a complete corresponding-source offer for them.
+See https://ffmpeg.org/legal.html before redistributing a preinstalled runtime.
+
+See `../LICENSE_SCOPE.md` for distribution boundaries, model-use restrictions
+and voluntary support. The release's `docs/licenses/` directory records installed
+Python and npm package metadata and notice hashes, including transitive packages.
+These are environment snapshots, not a future-version or native-library audit.

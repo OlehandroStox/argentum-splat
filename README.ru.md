@@ -2,13 +2,15 @@
 
 **Изображение → 3D Gaussian Splats → Cinema 4D и Redshift.** Бесплатный плагин с открытым исходным кодом для Windows и Cinema 4D 2027.
 
-[Скачать 0.5.0](https://github.com/OlehandroStox/argentum-splat/releases/download/v0.5.0/ArgentumSplat-0.5.0-C4D2027-Windows.zip) · [English](README.md) · [Все настройки](docs/controls.ru.md) · [Сообщить об ошибке](https://github.com/OlehandroStox/argentum-splat/issues/new/choose)
+[Скачать 0.5.1](https://github.com/OlehandroStox/argentum-splat/releases/download/v0.5.1/ArgentumSplat-0.5.1-C4D2027-Windows.zip) · [English](README.md) · [Все настройки](docs/controls.ru.md) · [Сообщить об ошибке](https://github.com/OlehandroStox/argentum-splat/issues/new/choose)
 
-> **Предварительная версия 0.5.0.** Пока используются временные ID `1000007–1000009`. Если другой плагин занимает те же ID, возможен конфликт. Сначала проверьте установку в отдельной папке настроек C4D. ID — внутренние идентификаторы плагина, а не лицензия или ключ активации.
+> **Предварительная версия 0.5.1.** Пока используются временные ID `1000007–1000009`. Если другой плагин занимает те же ID, возможен конфликт. Сначала проверьте установку в отдельной папке настроек C4D. ID — внутренние идентификаторы плагина, а не лицензия или ключ активации.
 
-## Что нового в 0.5.0
+## Что нового в 0.5.1
 
-**[Скачать ZIP для Windows](https://github.com/OlehandroStox/argentum-splat/releases/download/v0.5.0/ArgentumSplat-0.5.0-C4D2027-Windows.zip)** · [Страница релиза](https://github.com/OlehandroStox/argentum-splat/releases/tag/v0.5.0)
+Версия 0.5.1 уточняет лицензии, сохраняет уведомления авторов и добавляет перечень зависимостей. Рендер и генерация работают как в 0.5.0.
+
+**[Скачать ZIP для Windows](https://github.com/OlehandroStox/argentum-splat/releases/download/v0.5.1/ArgentumSplat-0.5.1-C4D2027-Windows.zip)** · [Страница релиза](https://github.com/OlehandroStox/argentum-splat/releases/tag/v0.5.1)
 
 - **Автоматическая установка:** `Install.cmd` устанавливает плагин, отдельный Python, конвертер форматов и компоненты AI. При повторном запуске готовые компоненты используются повторно.
 - **SCAN с прогрессом и отменой:** в релиз включены фоновая подготовка данных и сборка геометрии порциями. Предыдущая готовая модель остаётся видимой до завершения новой загрузки.
@@ -39,7 +41,7 @@ GIF показывает одну модель из одного изображ�
 
 ## Быстрая установка
 
-1. Скачайте **[ArgentumSplat-0.5.0-C4D2027-Windows.zip](https://github.com/OlehandroStox/argentum-splat/releases/download/v0.5.0/ArgentumSplat-0.5.0-C4D2027-Windows.zip)**. Это пакет с установщиком; автоматический архив Source code предназначен для разработки.
+1. Скачайте **[ArgentumSplat-0.5.1-C4D2027-Windows.zip](https://github.com/OlehandroStox/argentum-splat/releases/download/v0.5.1/ArgentumSplat-0.5.1-C4D2027-Windows.zip)**. Это пакет с установщиком; автоматический архив Source code предназначен для разработки.
 2. Распакуйте архив и закройте Cinema 4D.
 3. Запустите **ArgentumSplat/Install.cmd**. Он сам установит плагин, конвертер форматов, отдельный Python и компоненты AI. Если найдены несколько папок настроек C4D, выберите свою.
 4. Дождитесь итогового сообщения установки. Запустите C4D → **Extensions → ArgentumSplat → Argentum Splat**.
@@ -108,3 +110,5 @@ Point Preview облегчает рисование во viewport, но полн
 Интеграция — [MIT](LICENSE), автор **[OlehandroStox / ARGENTUM](https://github.com/OlehandroStox)**. AI — [TripoSplat от Tripo AI / VAST AI Research](https://github.com/VAST-AI-Research/TripoSplat), конвертация — [PlayCanvas splat-transform](https://github.com/playcanvas/splat-transform).
 
 Built with DINOv3. Веса и сторонние компоненты сохраняют свои лицензии, включая DINOv3 License и Apache 2.0 для FLUX.2 autoencoder. [Полные уведомления](ArgentumSplat/backend/THIRD_PARTY_NOTICES.md). Независимая разработка, не связанная с Maxon.
+
+Проверка лицензий: [условия распространения и добровольной поддержки](ArgentumSplat/LICENSE_SCOPE.md) · [зависимости и результаты проверки](docs/licenses/README.md). MIT относится к нашей интеграции, а не ко всем моделям и библиотекам.

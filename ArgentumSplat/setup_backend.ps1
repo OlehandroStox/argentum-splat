@@ -4,6 +4,8 @@ param(
     [switch]$Repair
 )
 $ErrorActionPreference = 'Stop'
+Write-Host 'Optional runtimes/models retain their own licenses (including DINOv3 for AI). MIT covers the integration only.'
+Write-Host ('License details before downloads: ' + (Join-Path $PSScriptRoot 'LICENSE_SCOPE.md'))
 $setupMutex = [System.Threading.Mutex]::new($false, 'Local\ArgentumSplatBackendSetup')
 $lockAcquired = $false
 try {

@@ -1,5 +1,9 @@
 # Validation scope
 
+## 0.5.1 license update
+
+112 portable tests passed. The two edited setup scripts parse successfully. License texts were checked against pinned upstream sources; release contents were inspected for runtime/model binaries. No geometry/rendering behavior changed; native rendering was not rerun for this documentation/notice update.
+
 Version 0.3.0 was tested on **Windows, Cinema 4D 2027.0.0 and NVIDIA RTX 4070 12 GB**. These results describe that setup; they are not a compatibility guarantee for other versions or hardware.
 
 ## 0.5.0 installation and native regression checks

@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.5.1 — License notices and distribution scope
+
+- Preserve the TripoSplat-Training camera-reference and tqdm notices.
+- Document actual converter license texts where npm metadata differs.
+- Add dependency inventory snapshots and a repeatable metadata/notice reporter.
+- Explain DINOv3, native-runtime and voluntary-support terms before setup downloads.
+- No rendering, geometry or AI-generation behavior changed.
+
+
 ## 0.5.0 — 2026-10-21 — preview
 
 - Make `Install.cmd` install the plugin, extra-format converter, private Python and AI dependencies in one workflow, with a final setup summary and logs.

@@ -1,6 +1,7 @@
 """Decode TripoSplat's predicted reference camera without Torch or Cinema 4D.
 
-The five camera values follow the upstream decoder:
+The five camera values follow the upstream decoder (MIT; VAST and Microsoft):
+See licenses/TripoSplat-Training-LICENSE.txt for the preserved notice.
 https://github.com/runjie-yan/TripoSplat-Training/blob/master/deg/utils/render_utils.py
 
 This camera refers to the square, background-removed conditioning image. It is

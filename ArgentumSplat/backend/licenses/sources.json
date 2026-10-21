@@ -4,20 +4,39 @@
     "name": "DINOv3-LICENSE.md",
     "path": "LICENSE.md",
     "revision": "6876159a11b4df116f30f667f8c9888617df0751",
-    "source_url": "https://raw.githubusercontent.com/facebookresearch/dinov3/6876159a11b4df116f30f667f8c9888617df0751/LICENSE.md"
+    "source_url": "https://raw.githubusercontent.com/facebookresearch/dinov3/6876159a11b4df116f30f667f8c9888617df0751/LICENSE.md",
+    "sha256": "25d122eb8f5b880fd23c736fb6ea8018ee45c12237e00b8a86d14c653904999e"
   },
   {
     "repo": "ZhengPeng7/BiRefNet",
     "name": "BiRefNet-LICENSE.txt",
     "path": "LICENSE",
     "revision": "97e4f35d74043427b0e9ba935ca10991853a36bc",
-    "source_url": "https://raw.githubusercontent.com/ZhengPeng7/BiRefNet/97e4f35d74043427b0e9ba935ca10991853a36bc/LICENSE"
+    "source_url": "https://raw.githubusercontent.com/ZhengPeng7/BiRefNet/97e4f35d74043427b0e9ba935ca10991853a36bc/LICENSE",
+    "sha256": "92a7089e0915fc32bc40067560b398f1e6a7a5958abd7d04eda393629a5acefb"
   },
   {
     "repo": "black-forest-labs/flux2",
     "name": "FLUX2-Apache-2.0.txt",
     "path": "LICENSE.md",
     "revision": "50fe5162777813d869182b139e83b10743caef15",
-    "source_url": "https://raw.githubusercontent.com/black-forest-labs/flux2/50fe5162777813d869182b139e83b10743caef15/LICENSE.md"
+    "source_url": "https://raw.githubusercontent.com/black-forest-labs/flux2/50fe5162777813d869182b139e83b10743caef15/LICENSE.md",
+    "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
+  },
+  {
+    "repo": "tqdm/tqdm",
+    "name": "tqdm-LICENCE.txt",
+    "path": "LICENCE",
+    "revision": "0ed5d7f18fa3153834cbac0aa57e8092b217cc16",
+    "source_url": "https://raw.githubusercontent.com/tqdm/tqdm/0ed5d7f18fa3153834cbac0aa57e8092b217cc16/LICENCE",
+    "sha256": "dc33252e829015e3b150086fb9b3a40f6ad6fb32c2f4610ce812fa677d35986a"
+  },
+  {
+    "repo": "runjie-yan/TripoSplat-Training",
+    "name": "TripoSplat-Training-LICENSE.txt",
+    "path": "LICENSE",
+    "revision": "bc94db87dd4b748d1edac5d28231c1e152e46508",
+    "source_url": "https://raw.githubusercontent.com/runjie-yan/TripoSplat-Training/bc94db87dd4b748d1edac5d28231c1e152e46508/LICENSE",
+    "sha256": "26dde12902c5cd8d63df00cea517f442dbb92ed144f9ee22fa571f12125319d2"
   }
 ]

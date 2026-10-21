@@ -3,7 +3,7 @@
 <h1 align="center">Argentum Splat</h1>
 <p align="center"><strong>Images to 3D Gaussian splats. Inside Cinema 4D.</strong><br>Free, open-source integration for Cinema 4D 2027 and Redshift on Windows.</p>
 <p align="center">
-  <a href="https://github.com/OlehandroStox/argentum-splat/releases/download/v0.5.0/ArgentumSplat-0.5.0-C4D2027-Windows.zip">Download 0.5.0</a> ·
+  <a href="https://github.com/OlehandroStox/argentum-splat/releases/download/v0.5.1/ArgentumSplat-0.5.1-C4D2027-Windows.zip">Download 0.5.1</a> ·
   <a href="#install">Install</a> ·
   <a href="docs/controls.md">Controls</a> ·
   <a href="README.ru.md">Русский</a> ·
@@ -18,12 +18,13 @@
 
 Generate a static 3D Gaussian model from one image with **local TripoSplat inference**, or load an existing Gaussian scan. Adjust its appearance, render it with Redshift, and use Cinema 4D deformers and MoGraph.
 
-> **Preview release:** version 0.5.0 uses development plugin IDs `1000007–1000009`, not registered permanent Maxon IDs. They can conflict with another plugin using those IDs. Test in a separate C4D preferences folder before production use. [Details and compatibility](docs/installation.md#plugin-ids).
+> **Preview release:** version 0.5.1 uses development plugin IDs `1000007–1000009`, not registered permanent Maxon IDs. They can conflict with another plugin using those IDs. Test in a separate C4D preferences folder before production use. [Details and compatibility](docs/installation.md#plugin-ids).
 
-## What's new in 0.5.0
+## Current release: 0.5.1
 
-**[Download the Windows ZIP](https://github.com/OlehandroStox/argentum-splat/releases/download/v0.5.0/ArgentumSplat-0.5.0-C4D2027-Windows.zip)** · [Release notes](https://github.com/OlehandroStox/argentum-splat/releases/tag/v0.5.0)
+**[Download the Windows ZIP](https://github.com/OlehandroStox/argentum-splat/releases/download/v0.5.1/ArgentumSplat-0.5.1-C4D2027-Windows.zip)** · [Release notes](https://github.com/OlehandroStox/argentum-splat/releases/tag/v0.5.1)
 
+- **0.5.1 license update:** clearer distribution and support terms, preserved notices and a dependency inventory. Rendering behavior is unchanged from 0.5.0.
 - **Automatic setup:** run `Install.cmd` to install the plugin, private Python, extra-format converter and AI dependencies. Ready components are reused on repeat runs.
 - **Responsive SCAN loading:** this release includes background preparation, a progress window with Cancel, and staged geometry assembly. The previous complete model stays visible until its replacement is ready.
 - **Less repeated work:** LOOK weight edits reuse geometry. With Camera-Facing Cards off, camera movement reuses spatial data and updates SH colours as needed; moving lights does not reload the source file.
@@ -58,7 +59,7 @@ Your media stays local. Initial setup downloads dependencies and model weights; 
 
 ## Install
 
-1. Download **[ArgentumSplat-0.5.0-C4D2027-Windows.zip](https://github.com/OlehandroStox/argentum-splat/releases/download/v0.5.0/ArgentumSplat-0.5.0-C4D2027-Windows.zip)**. This is the installer package; GitHub's automatic “Source code” archive is intended for development.
+1. Download **[ArgentumSplat-0.5.1-C4D2027-Windows.zip](https://github.com/OlehandroStox/argentum-splat/releases/download/v0.5.1/ArgentumSplat-0.5.1-C4D2027-Windows.zip)**. This is the installer package; GitHub's automatic “Source code” archive is intended for development.
 2. Extract the ZIP, close Cinema 4D and run **`ArgentumSplat/Install.cmd`**. It installs the plugin, extra-format converter, private Python runtime and AI dependencies automatically. If several C4D preferences folders exist, choose the one you use.
 3. Wait for the setup summary, then start C4D → **Extensions → ArgentumSplat → Argentum Splat**.
 
@@ -140,3 +141,5 @@ The independently written integration is **[MIT licensed](LICENSE)**. The local 
 Model weights and dependencies are downloaded separately and retain their own terms. **Built with DINOv3**; DINOv3 has a custom Meta license. The FLUX.2 autoencoder is Apache-2.0. Read the [third-party notices](ArgentumSplat/backend/THIRD_PARTY_NOTICES.md) and [converter notices](ArgentumSplat/backend/formats/THIRD_PARTY_NOTICES.txt).
 
 Maintained by [OlehandroStox / ARGENTUM](https://github.com/OlehandroStox). Independently developed; not affiliated with Maxon.
+
+License audit: [conditions for sharing and voluntary support](ArgentumSplat/LICENSE_SCOPE.md) · [dependency inventory and findings](docs/licenses/README.md).
