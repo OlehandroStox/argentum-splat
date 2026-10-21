@@ -104,6 +104,11 @@ def download(cache):
                         break
                     output.write(block)
     if sha256(temporary) != expected:
+        # Length alone cannot authenticate resumable chunks. Discard this
+        # download's parts so a subsequent Install can recover from corruption.
+        for number in range(count):
+            (parts / ("%05d.bin" % number)).unlink(missing_ok=True)
+        temporary.unlink(missing_ok=True)
         raise RuntimeError("PyTorch SHA-256 verification failed; no code was installed.")
     temporary.replace(target)
     for number in range(count):

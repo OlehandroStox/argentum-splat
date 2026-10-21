@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.5.0 — 2026-10-21 — preview
+
+- Make `Install.cmd` install the plugin, extra-format converter, private Python and AI dependencies in one workflow, with a final setup summary and logs.
+- Bootstrap checksum-verified CPython 3.12.15 when needed. Retain a working existing Python 3.10–3.12 environment; leave system PATH and Cinema 4D's Python unchanged. No administrator rights are required.
+- Check NVIDIA GPU/driver prerequisites before large AI downloads. Preserve the installed plugin and completed converter setup if AI setup fails.
+- Reuse ready components on repeated setup; provide AI repair, import-only and core-only modes. The in-plugin setup button uses the same Python bootstrap.
+- Preserve the working converter during failed repair; recover from corrupt Python/PyTorch downloads and report partial setup accurately.
+- Validate a fresh Python 3.12 environment with actual image generation and run 112 portable regression tests.
+- Update English/Russian installation guides and third-party runtime notices.
+- Recheck native C4D behaviour: 12 camera/light changes, six render evaluation contexts and a MoGraph Fracture rig across 13 frames. Surface-card geometry remained intact; these are bounded regression checks, not a universal no-crash or real-time performance guarantee. See [validation scope](docs/validation.md).
+
 ## 0.4.0 — 2026-10-21
 
 - Load SCAN data, evaluate colour and prepare geometry in a cancellable background worker. Conversion, reading and C4D assembly now have progress and elapsed time; Status remains in Attributes.

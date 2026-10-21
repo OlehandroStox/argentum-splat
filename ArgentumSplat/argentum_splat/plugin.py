@@ -687,15 +687,18 @@ class SplatObject(InteractiveScan, c4d.plugins.ObjectData):
         require_idle()
         RUNTIME.mkdir(parents=True,exist_ok=True)
         log = (RUNTIME/(kind+".log")).open("wb")
-        script = "setup_formats.ps1" if kind == "formats" else "setup_backend.ps1"
+        script = "setup_formats.ps1" if kind == "formats" else "setup_all.ps1"
+        run_id = uuid.uuid4().hex
+        args = ["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(ROOT/script)]
+        if kind != 'formats':
+            args += ['-RunId', run_id]
         try:
-            proc = subprocess.Popen(["powershell.exe","-NoProfile","-ExecutionPolicy","Bypass",
-                "-File",str(ROOT/script)],stdout=log,stderr=subprocess.STDOUT,
+            proc = subprocess.Popen(args,stdout=log,stderr=subprocess.STDOUT,
                 cwd=str(ROOT),shell=False,creationflags=getattr(subprocess,"CREATE_NO_WINDOW",0))
         except Exception:
             log.close()
             raise
-        self.job = dict(process=proc,log=log,dir=RUNTIME,result=None,kind=kind)
+        self.job = dict(process=proc,log=log,dir=RUNTIME,result=None,kind=kind,run_id=run_id)
         JOBS.add(self)
         self.set_progress("Installing extra format support (PlayCanvas)."
             if kind == "formats" else "Installing isolated AI runtime and model weights (~several GB).")
@@ -784,16 +787,24 @@ class SplatObject(InteractiveScan, c4d.plugins.ObjectData):
             self.initialise()
             return
         if job["kind"] == "formats":
-            self.op[I.STATUS] = ("AI and extra formats are ready." if code == 0 else
+            self.op[I.STATUS] = ("Extra formats are ready." if code == 0 else
                 "Format setup failed. See "+str(RUNTIME/"formats.log"))
             c4d.EventAdd()
             return
         if job["kind"] == "setup":
-            if code == 0:
-                self.start_setup("formats")
-                return
-            self.op[I.STATUS] = ("AI backend installed. Choose an image and Generate." if code == 0
-                else "Backend setup failed. See "+str(RUNTIME/"setup.log"))
+            summary = 'Setup needs attention. See ' + str(RUNTIME/'setup.log')
+            try:
+                result = json.loads((RUNTIME/'setup-result.json').read_text(encoding='utf8'))
+                if result.get('run_id') != job.get('run_id'):
+                    raise ValueError('Setup report belongs to another run.')
+                summary = 'Extra formats: %s. AI: %s.' % (result['formats'], result['ai'])
+                if result.get('errors'):
+                    summary += ' ' + ' | '.join(result['errors'])
+                elif code != 0:
+                    summary += ' Setup interrupted or failed. See ' + str(RUNTIME/'setup.log')
+            except (OSError, ValueError, KeyError):
+                pass
+            self.op[I.STATUS] = ("AI and extra formats are ready. Choose an image and Generate." if code == 0 else summary)
             c4d.EventAdd()
             return
         if job["result"].is_file():

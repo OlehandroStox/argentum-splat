@@ -18,7 +18,7 @@
 
 Generate a static 3D Gaussian model from one image with **local TripoSplat inference**, or load an existing Gaussian scan. Adjust its appearance, render it with Redshift, and use Cinema 4D deformers and MoGraph.
 
-> **Preview release:** version 0.4.0 uses development plugin IDs `1000007–1000009`, not registered permanent Maxon IDs. They can conflict with another plugin using those IDs. Test in a separate C4D preferences folder before production use. [Details and compatibility](docs/installation.md#plugin-ids).
+> **Preview release:** version 0.5.0 uses development plugin IDs `1000007–1000009`, not registered permanent Maxon IDs. They can conflict with another plugin using those IDs. Test in a separate C4D preferences folder before production use. [Details and compatibility](docs/installation.md#plugin-ids).
 
 ## See the result
 
@@ -47,12 +47,13 @@ Your media stays local. Initial setup downloads dependencies and model weights; 
 
 ## Install
 
-1. Download **`ArgentumSplat-0.4.0-C4D2027-Windows.zip`** from [Releases](https://github.com/OlehandroStox/argentum-splat/releases). Choose the named asset, not GitHub's automatic “Source code” archive.
-2. Extract the ZIP. Close Cinema 4D and run **`ArgentumSplat/Install.cmd`**. Or copy the whole `ArgentumSplat` folder into the `plugins` folder inside your C4D 2027 preferences directory.
-3. Start C4D → **Extensions → ArgentumSplat → Argentum Splat**.
-4. For image/video generation, click **Set Up AI / Extra Formats** once. Wait for **Status** to report completion.
+1. Download **`ArgentumSplat-0.5.0-C4D2027-Windows.zip`** from [Releases](https://github.com/OlehandroStox/argentum-splat/releases). Choose the named asset, not GitHub's automatic “Source code” archive.
+2. Extract the ZIP, close Cinema 4D and run **`ArgentumSplat/Install.cmd`**. It installs the plugin, extra-format converter, private Python runtime and AI dependencies automatically. If several C4D preferences folders exist, choose the one you use.
+3. Wait for the setup summary, then start C4D → **Extensions → ArgentumSplat → Argentum Splat**.
 
-**Requirements:** Windows x64 + Cinema 4D **2027**. Redshift for rendering. Local AI additionally needs Python **3.10–3.12**, an NVIDIA **Ampere-or-newer BF16-capable CUDA GPU**, and several GB of downloads. Tested on RTX 4070 12 GB. Importing native PLY/SPLAT/SPZ v2/v3 does not require the AI models. macOS, AMD inference and older C4D versions are not supported by this release.
+**No manual Python installation is needed.** Setup keeps a working existing AI environment, or downloads a private Python **3.12.15** with a verified checksum. It needs no administrator rights and does not change system PATH or C4D's Python. The first setup needs internet access, several GB of storage/downloads and time; subsequent runs reuse ready components. The in-plugin **Set Up AI / Extra Formats** button uses the same automatic setup.
+
+**Requirements:** Windows x64 + Cinema 4D **2027**. Redshift for rendering. Local AI needs an NVIDIA **Ampere-or-newer BF16-capable CUDA GPU** and a compatible NVIDIA driver. Setup checks the GPU before large AI downloads; it does not install drivers. A separate CUDA Toolkit is not needed. Tested on RTX 4070 12 GB. Native PLY/SPLAT/SPZ v2/v3 import works without AI, and an AI setup failure keeps the installed plugin available. macOS, AMD inference and older C4D versions are not supported by this release.
 
 [Installation details, manual setup and troubleshooting →](docs/installation.md)
 

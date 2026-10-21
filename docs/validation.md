@@ -2,6 +2,29 @@
 
 Version 0.3.0 was tested on **Windows, Cinema 4D 2027.0.0 and NVIDIA RTX 4070 12 GB**. These results describe that setup; they are not a compatibility guarantee for other versions or hardware.
 
+## 0.5.0 installation and native regression checks
+
+**112 portable tests pass**, including malformed/truncated runtime checkpoints and recovery from corrupt resumable PyTorch chunks. Windows PowerShell 5.1 installation checks cover:
+
+- Downloading private CPython 3.12.15 into an empty runtime directory, creating venv/pip without using system Python, and reusing it without rewriting the environment. First bootstrap took 19.0 seconds on the test connection; this excludes AI packages/models.
+- Recovery from a corrupt Python archive, incomplete extraction and broken venv, preserving the old files in backups. Paths containing spaces and Cyrillic characters also work. User and machine PATH remain unchanged.
+- Full installer orchestration with an existing ready AI environment; plugin backup, partial dependency failure, import-only mode, unique run reports and dependency setup launched from the already-installed plugin folder.
+- Fresh portable Node/converter installation and actual conversion of a SOG fixture. A deliberately failed converter repair preserved the previous manifest and working converter.
+
+A fresh CPython 3.12.15 environment installed the CUDA packages and verified all five model hashes successfully in 450 seconds; a repeated setup completed in 3.9 seconds without downloads. The checkpoints were reused through local hard links and fully hashed, rather than downloaded again. This tests a clean Python runtime on the existing machine, not a separate clean Windows installation.
+
+That new environment generated 65,536 Gaussians from the bundled house reference at 20 steps / seed 42 in 42.7 seconds. Both resulting PLY and SPLAT files passed the plugin's full reader validation with 65,536 finite records and matching positions (allowing for their different ordering). The 112-test portable suite also passes under this Python 3.12 environment.
+
+The in-plugin setup action was also run in a temporary native C4D document using the refreshed 0.5.0 callbacks: setup exited successfully, its run ID matched the report, ready dependencies were reused, Status updated and the progress window closed. The user's original scene, Status and loaded geometry remained unchanged.
+
+In C4D 2027.0.0, a 1,024-splat fixture retained its geometry hash through 12 camera/light changes and six render/editor/export evaluation contexts. An animated MoGraph Plain Effector moved every card through 0–25 cm across 13 evaluated frames. An animated Bend deformer also preserved all cards; its render clone matched the evaluated geometry. UVs and per-card attributes were retained.
+
+For SH3, camera movement reused spatial data and changed only colours after settling. Camera-Facing Cards intentionally updated orientation while retaining the previous complete model during processing. Two actual Redshift previews completed with nonempty output and unchanged source geometry. These are functional checks on a small fixture, not FPS measurements for large MoGraph scenes.
+
+Live RS Render View start/stop could not be confirmed through the available command-state API without operating its window; no success is claimed for that additional test. Renderer sample accumulation can restart when the camera or lights change even though the splat geometry remains intact. No cold application restart was performed for this update.
+
+The Windows integration scripts are `tests/test_installer_python.ps1` (real Python download) and `tests/test_install_workflow.ps1` (isolated installer/failure fixtures). Pass a new dedicated `-RuntimeDir` or `-TestRoot`, respectively. They preserve their outputs for inspection.
+
 ## 0.4.0 scan pipeline
 
 **105 portable tests pass**, including all media tests with Pillow/PyAV installed. Added checks cover deterministic sampling, invalid records outside the retained sample, cancellation while reading/smoothing, atomic worker results and camera dependencies. A separate comparison against 0.3.2 preserved sampled SPLAT attributes/bounds exactly and produced identical smoothed normals for 4,000 randomized inputs.

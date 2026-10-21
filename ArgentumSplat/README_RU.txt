@@ -1,4 +1,4 @@
-ARGENTUM SPLAT 0.4.0 — Cinema 4D 2027 / Windows / Redshift
+ARGENTUM SPLAT 0.5.0 — Cinema 4D 2027 / Windows / Redshift
 
 Бесплатная предварительная версия с открытым исходным кодом.
 Проект: https://github.com/OlehandroStox/argentum-splat
@@ -9,14 +9,33 @@ https://boosty.to/olehandrostox/donate
 
 УСТАНОВКА
 Закройте Cinema 4D. Распакуйте весь архив и запустите Install.cmd.
-Либо скопируйте папку ArgentumSplat целиком в plugins пользовательской
-папки настроек Cinema 4D 2027. Перезапустите Cinema 4D.
+Он установит плагин, конвертер, отдельный Python и зависимости/веса AI.
+Если найдены несколько папок настроек C4D, выберите свою. Дождитесь итогового
+сообщения установки, затем запустите Cinema 4D:
 Extensions → ArgentumSplat → Argentum Splat.
 
-Для AI нажмите Set Up AI / Extra Formats и дождитесь завершения в Status.
-Нужны Windows x64, Python 3.10–3.12 и NVIDIA Ampere или новее с BF16 CUDA.
-Первая установка скачивает несколько гигабайт. C4D Python не изменяется.
-Для импорта PLY/SPLAT/SPZ v2/v3 веса AI не требуются.
+Python вручную устанавливать не нужно. Рабочая AI-среда сохраняется;
+при необходимости скачивается проверенный отдельный Python 3.12.15.
+Права администратора не нужны, системный PATH и Python в C4D не меняются.
+Первая установка требует интернета, нескольких гигабайт места и времени.
+Повторный запуск использует уже готовые компоненты.
+
+Для AI нужны Windows x64 и NVIDIA Ampere или новее с BF16 CUDA и совместимым
+драйвером. GPU проверяется до больших загрузок. Драйвер устанавливайте сами;
+отдельный CUDA Toolkit не нужен. Для импорта PLY/SPLAT/SPZ v2/v3 AI не нужен.
+При ошибке AI установленный плагин остаётся доступен. Прочитайте итоговое
+сообщение, устраните указанную причину и снова запустите Install.cmd.
+Логи: %LOCALAPPDATA%\ArgentumSplat\installer\logs
+Итог: %LOCALAPPDATA%\ArgentumSplat\runtime\setup-result.json
+
+Для установки без AI: из PowerShell в этой папке выполните
+powershell -NoProfile -ExecutionPolicy Bypass -File .\Install.ps1 -ImportOnly
+Это установит плагин и конвертер сканов. -CoreOnly копирует только плагин.
+
+Ручной вариант: скопируйте папку ArgentumSplat целиком в plugins папки
+настроек C4D 2027. Затем в C4D нажмите Set Up AI / Extra Formats для
+автоматической настройки зависимостей и дождитесь завершения в Status.
+Не устанавливайте несколько копий в разные пути поиска плагинов C4D.
 
 Input File → фото → 65,536 Gaussians / 20 steps / Alpha Erosion 0 →
 Load / Generate from Input. После завершения: Source Fidelity — Preserve

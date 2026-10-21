@@ -35,6 +35,8 @@ def main():
 
     if not torch.cuda.is_available():
         raise RuntimeError("CUDA is unavailable. Install an NVIDIA driver compatible with CUDA 12.8.")
+    if not torch.cuda.is_bf16_supported():
+        raise RuntimeError("Local AI requires an NVIDIA Ampere-or-newer GPU with BF16 support.")
     info = model_info(MODEL_REPO, revision=MODEL_REVISION, files_metadata=True, token=False)
     expected = {}
     for item in info.siblings:
@@ -58,6 +60,7 @@ def main():
         "model_repo": MODEL_REPO,
         "model_revision": MODEL_REVISION,
         "model_sha256": hashes,
+        "model_sizes": {name: expected[name][0] for name in WEIGHTS},
         "torch_version": torch.__version__,
         "torchvision_version": torchvision.__version__,
         "cuda_version": torch.version.cuda,

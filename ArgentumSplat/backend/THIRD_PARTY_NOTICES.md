@@ -40,3 +40,25 @@ runtime from PyPI: https://pypi.org/project/av/16.0.1/ . PyAV's Windows wheel
 includes FFmpeg libraries subject to their own terms. This source archive
 does not redistribute the wheel or those binaries. Installed license notices
 are retained in the runtime package. Source: https://github.com/PyAV-Org/PyAV .
+
+## Private Python bootstrap
+
+When a compatible working AI environment is absent, setup downloads
+**CPython 3.12.15**, Windows x86-64, from Astral's **python-build-standalone**
+release **20261020**. The archive is checked against the SHA-256 pinned in
+`setup_python.ps1` before extraction. The downloaded Python binary is not
+included in this plugin's source or release ZIP.
+
+This is an Astral-built CPython distribution, not a Windows binary supplied
+by the Python Software Foundation. CPython and the distribution's bundled
+components retain their respective licenses. Setup retains the license files
+shipped in the runtime; the plugin's MIT license does not replace them.
+
+- Build project and source: https://github.com/astral-sh/python-build-standalone
+- Pinned release: https://github.com/astral-sh/python-build-standalone/releases/tag/20261020
+- Build-project license: https://github.com/astral-sh/python-build-standalone/blob/20261020/LICENSE
+- CPython source and license: https://github.com/python/cpython/tree/v3.12.15
+
+The private installation does not modify system PATH or Cinema 4D's Python.
+Existing compatible AI environments may continue using their original Python
+distribution and its associated licenses instead.
