@@ -1,0 +1,35 @@
+name: Bug report / Ошибка
+description: Report a reproducible plugin problem / Сообщить об ошибке
+title: "[Bug] "
+body:
+  - type: input
+    id: versions
+    attributes:
+      label: Versions / Версии
+      description: Argentum Splat, Cinema 4D, Redshift and Windows versions.
+    validations:
+      required: true
+  - type: input
+    id: gpu
+    attributes:
+      label: GPU and input format / Видеокарта и формат
+      placeholder: RTX 4070 12 GB; PNG / PLY / MOV...
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps and expected result / Шаги и ожидаемый результат
+      description: What did you do, what happened, and what should happen?
+    validations:
+      required: true
+  - type: textarea
+    id: error
+    attributes:
+      label: Status and relevant log / Status и ошибка
+      description: Remove personal paths, credentials and private source media before sharing.
+  - type: textarea
+    id: example
+    attributes:
+      label: Small example / Небольшой пример
+      description: Optional public input or image you have permission to share.

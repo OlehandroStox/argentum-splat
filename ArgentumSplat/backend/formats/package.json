@@ -1,0 +1,11 @@
+{
+  "name": "argentum-splat-format-runtime",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Isolated, pinned optional format conversion runtime for Argentum Splat.",
+  "license": "MIT",
+  "dependencies": {
+    "@playcanvas/splat-transform": "3.10.1",
+    "playcanvas": "2.23.1"
+  }
+}

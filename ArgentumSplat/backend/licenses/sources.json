@@ -1,0 +1,23 @@
+[
+  {
+    "repo": "facebookresearch/dinov3",
+    "name": "DINOv3-LICENSE.md",
+    "path": "LICENSE.md",
+    "revision": "6876159a11b4df116f30f667f8c9888617df0751",
+    "source_url": "https://raw.githubusercontent.com/facebookresearch/dinov3/6876159a11b4df116f30f667f8c9888617df0751/LICENSE.md"
+  },
+  {
+    "repo": "ZhengPeng7/BiRefNet",
+    "name": "BiRefNet-LICENSE.txt",
+    "path": "LICENSE",
+    "revision": "97e4f35d74043427b0e9ba935ca10991853a36bc",
+    "source_url": "https://raw.githubusercontent.com/ZhengPeng7/BiRefNet/97e4f35d74043427b0e9ba935ca10991853a36bc/LICENSE"
+  },
+  {
+    "repo": "black-forest-labs/flux2",
+    "name": "FLUX2-Apache-2.0.txt",
+    "path": "LICENSE.md",
+    "revision": "50fe5162777813d869182b139e83b10743caef15",
+    "source_url": "https://raw.githubusercontent.com/black-forest-labs/flux2/50fe5162777813d869182b139e83b10743caef15/LICENSE.md"
+  }
+]

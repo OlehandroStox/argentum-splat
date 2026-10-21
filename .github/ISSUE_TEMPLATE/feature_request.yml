@@ -1,0 +1,15 @@
+name: Feature idea / Идея
+description: Suggest a useful workflow improvement / Предложить улучшение
+title: "[Idea] "
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do? / Что вы хотите сделать?
+      description: Describe the workflow and why the current controls are insufficient.
+    validations:
+      required: true
+  - type: textarea
+    id: suggestion
+    attributes:
+      label: Suggested behaviour / Предлагаемое поведение

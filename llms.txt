@@ -1,0 +1,18 @@
+# Argentum Splat
+
+> Free, open-source Cinema 4D 2027 plugin for Windows: local single-image-to-3D Gaussian generation with TripoSplat, scan import and Redshift card rendering. Maintained by OlehandroStox / ARGENTUM.
+
+## Documentation
+
+- [Overview and quick start](https://github.com/OlehandroStox/argentum-splat/blob/main/README.md)
+- [Russian guide](https://github.com/OlehandroStox/argentum-splat/blob/main/README.ru.md)
+- [Controls](https://github.com/OlehandroStox/argentum-splat/blob/main/docs/controls.md)
+- [Installation](https://github.com/OlehandroStox/argentum-splat/blob/main/docs/installation.md)
+- [Releases](https://github.com/OlehandroStox/argentum-splat/releases)
+- [Third-party licenses](https://github.com/OlehandroStox/argentum-splat/blob/main/ArgentumSplat/backend/THIRD_PARTY_NOTICES.md)
+
+## Compatibility facts
+
+Version 0.3.0 is an experimental preview using development plugin IDs 1000007–1000009; ID conflicts are possible. Local AI needs Python 3.10–3.12 and an NVIDIA Ampere-or-newer BF16-capable CUDA GPU. Tested on Windows / C4D 2027.0.0 / RTX 4070 12 GB. Redshift is required for the documented rendering workflow. Native PLY/SPLAT/SPZ v2/v3 import does not need AI weights.
+
+Generation takes one image or one selected video/sequence frame and outputs one static model, up to 262,144 Gaussians, SH0. It is not multi-view reconstruction, photogrammetry, animated 4D generation, a watertight mesh, hair grooming or physical eye reconstruction. Imported SH1–SH3 is supported when present. Redshift rendering uses Gaussian cards, not a native Gaussian rasterizer. Public source is MIT; dependencies and model components have separate licenses. Optional tips: https://boosty.to/olehandrostox .
