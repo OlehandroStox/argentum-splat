@@ -22,4 +22,4 @@ SOFTWARE.
 
 This license covers the independently written Argentum Splat integration.
 Third-party code and model weights retain their respective licenses. See
-the backend notices. This product is not affiliated with TACTYC or Maxon.
+the backend notices. This product is not affiliated with Maxon.

@@ -12,4 +12,4 @@ The model was generated locally with TripoSplat through Argentum Splat:
 
 The reference compositor uses a dark background, 3-sigma support, a 0.25-pixel covariance floor and alpha capped at 0.99. Native Gaussian compositing and Redshift card shading are different; colour transforms and layering can also differ.
 
-The icon is original Argentum Splat artwork, distributed with this project's MIT integration license. No competitor screenshots, private source photographs or paid assets are included.
+The icon is original Argentum Splat artwork, distributed with this project's MIT integration license. No private source photographs or paid assets are included.

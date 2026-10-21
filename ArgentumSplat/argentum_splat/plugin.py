@@ -796,7 +796,7 @@ class Coordinator(c4d.plugins.MessageData):
             if action == I.SUPPORT_AUTHOR:
                 # A browser action must not rebuild geometry or overwrite job status.
                 import webbrowser
-                url = 'https://boosty.to/olehandrostox'
+                url = 'https://boosty.to/olehandrostox/donate'
                 try:
                     opened = webbrowser.open_new_tab(url)
                 except Exception:

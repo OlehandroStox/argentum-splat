@@ -14,7 +14,6 @@ TripoSplat converts a single 2D image into high-quality and variable number of 3
 - **Arbitrary Gaussian count** (up to 262,144) — trade off visual quality against rendering cost according to your need.
 - **Minimal, readable code**: two files (`triposplat.py` and `model.py`), ~2,000 LOC total. Easy to customize and integrate into other ecosystems.
 - **Near-zero dependencies**: no `transformers`, no `diffusers`, no version-conflict hell. Runs on any platform.
-- **Official ComfyUI support**: drop the [official workflow template](https://github.com/Comfy-Org/workflow_templates/blob/main/templates/3d_triposplat_image_to_gaussian_splat.json) into ComfyUI and start playing with TripoSplat right away.
 
 ## Quickstart
 Download model weights to `ckpts/` from [HuggingFace](https://huggingface.co/VAST-AI/TripoSplat). 
@@ -46,9 +45,8 @@ pip install numpy safetensors pillow tqdm
 python run_example.py
 ```
 
-The exported `.ply` / `.splat` files can be visualized in any 3D Gaussian
-viewer — e.g. [SparkJS](https://sparkjs.dev) or
-[SuperSplat](https://superspl.at/editor).
+The exported `.ply` / `.splat` files can be loaded with Argentum Splat in Cinema 4D.
+This bundled README and a callback docstring are adapted for this integration; upstream Python behavior and license notices are unchanged.
 
 
 ## Gradio Demo

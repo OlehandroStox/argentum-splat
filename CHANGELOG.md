@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.2 — 2026-10-21
+
+- Open the one-time Boosty donation form directly from the plugin and GitHub support links.
+- Streamline documentation and bundled instructions; preserve dependency credits and license notices.
+
 ## 0.3.1 — 2026-10-21
 
 - Add a quiet **Support the author - Boosty** button below Status in the object's Attributes.

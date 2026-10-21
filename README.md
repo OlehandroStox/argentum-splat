@@ -7,7 +7,7 @@
   <a href="#install">Install</a> ·
   <a href="docs/controls.md">Controls</a> ·
   <a href="README.ru.md">Русский</a> ·
-  <a href="https://boosty.to/olehandrostox">Support the author</a> ·
+  <a href="https://boosty.to/olehandrostox/donate">Support the author</a> ·
   <a href="https://github.com/OlehandroStox/argentum-splat/issues">Help & feedback</a>
 </p>
 
@@ -18,7 +18,7 @@
 
 Generate a static 3D Gaussian model from one image with **local TripoSplat inference**, or load an existing Gaussian scan. Adjust its appearance, render it with Redshift, and use Cinema 4D deformers and MoGraph.
 
-> **Preview release:** version 0.3.1 uses development plugin IDs `1000007–1000009`, not registered permanent Maxon IDs. They can conflict with another plugin using those IDs. Test in a separate C4D preferences folder before production use. [Details and compatibility](docs/installation.md#plugin-ids).
+> **Preview release:** version 0.3.2 uses development plugin IDs `1000007–1000009`, not registered permanent Maxon IDs. They can conflict with another plugin using those IDs. Test in a separate C4D preferences folder before production use. [Details and compatibility](docs/installation.md#plugin-ids).
 
 ## See the result
 
@@ -47,7 +47,7 @@ Your media stays local. Initial setup downloads dependencies and model weights; 
 
 ## Install
 
-1. Download **`ArgentumSplat-0.3.1-C4D2027-Windows.zip`** from [Releases](https://github.com/OlehandroStox/argentum-splat/releases). Choose the named asset, not GitHub's automatic “Source code” archive.
+1. Download **`ArgentumSplat-0.3.2-C4D2027-Windows.zip`** from [Releases](https://github.com/OlehandroStox/argentum-splat/releases). Choose the named asset, not GitHub's automatic “Source code” archive.
 2. Extract the ZIP. Close Cinema 4D and run **`ArgentumSplat/Install.cmd`**. Or copy the whole `ArgentumSplat` folder into the `plugins` folder inside your C4D 2027 preferences directory.
 3. Start C4D → **Extensions → ArgentumSplat → Argentum Splat**.
 4. For image/video generation, click **Set Up AI / Extra Formats** once. Wait for **Status** to report completion.
@@ -114,7 +114,7 @@ Found a bug? [Open an issue](https://github.com/OlehandroStox/argentum-splat/iss
 
 ## Support the project
 
-**[☕ Support the author on Boosty](https://boosty.to/olehandrostox)**
+**[☕ Support the author on Boosty](https://boosty.to/olehandrostox/donate)**
 
 The same optional link is available inside the plugin: **Status → Support the author - Boosty**. It opens only when clicked.
 
@@ -126,4 +126,4 @@ The independently written integration is **[MIT licensed](LICENSE)**. The local 
 
 Model weights and dependencies are downloaded separately and retain their own terms. **Built with DINOv3**; DINOv3 has a custom Meta license. The FLUX.2 autoencoder is Apache-2.0. Read the [third-party notices](ArgentumSplat/backend/THIRD_PARTY_NOTICES.md) and [converter notices](ArgentumSplat/backend/formats/THIRD_PARTY_NOTICES.txt).
 
-Maintained by [OlehandroStox / ARGENTUM](https://github.com/OlehandroStox). Not affiliated with Maxon or TACTYC. No proprietary TACTYC code or paid assets are included.
+Maintained by [OlehandroStox / ARGENTUM](https://github.com/OlehandroStox). Independently developed; not affiliated with Maxon.

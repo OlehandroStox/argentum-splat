@@ -1,11 +1,11 @@
-ARGENTUM SPLAT 0.3.1 — Cinema 4D 2027 / Windows / Redshift
+ARGENTUM SPLAT 0.3.2 — Cinema 4D 2027 / Windows / Redshift
 
 Бесплатная предварительная версия с открытым исходным кодом.
 Проект: https://github.com/OlehandroStox/argentum-splat
 Русский справочник: https://github.com/OlehandroStox/argentum-splat/blob/main/README.ru.md
 
 Под Status: Support the author - Boosty — добровольная поддержка автора.
-https://boosty.to/olehandrostox
+https://boosty.to/olehandrostox/donate
 
 УСТАНОВКА
 Закройте Cinema 4D. Распакуйте весь архив и запустите Install.cmd.
@@ -36,10 +36,10 @@ Object 1000007, Command 1000008, Message 1000009 — development ID.
 вручную в сценах, которые нужно сохранить совместимыми.
 
 ПОДДЕРЖАТЬ АВТОРА
-https://boosty.to/olehandrostox — добровольные чаевые.
+https://boosty.to/olehandrostox/donate — добровольные чаевые.
 Скачивание и функции этой версии бесплатны.
 
 Интеграция: MIT, OlehandroStox / ARGENTUM. TripoSplat: Tripo AI / VAST AI Research.
 Built with DINOv3. Сторонние компоненты сохраняют собственные лицензии.
 Читайте LICENSE.txt, backend/THIRD_PARTY_NOTICES.md и backend/licenses/.
-Плагин не связан с Maxon или TACTYC.
+Независимая разработка, не связанная с Maxon.

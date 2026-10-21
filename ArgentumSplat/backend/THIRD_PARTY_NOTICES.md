@@ -2,7 +2,9 @@ Argentum Splat uses the TripoSplat inference implementation by Tripo AI / VAST A
 
 Source: https://github.com/VAST-AI-Research/TripoSplat
 Pinned source revision: d8db9e018b413dd9c4a9fe22463781bf98e8e68d
-The unmodified upstream Python files and MIT license are in vendor/.
+The upstream Python implementation and MIT license are in vendor/. The bundled
+README and a callback docstring are adapted for this integration; runtime behavior
+and license notices are unchanged.
 
 Public model repository: https://huggingface.co/VAST-AI/TripoSplat
 Pinned model revision: 56a96e603204ec410c4da60c13ea4fa09a2169a9
@@ -38,6 +40,3 @@ runtime from PyPI: https://pypi.org/project/av/16.0.1/ . PyAV's Windows wheel
 includes FFmpeg libraries subject to their own terms. This source archive
 does not redistribute the wheel or those binaries. Installed license notices
 are retained in the runtime package. Source: https://github.com/PyAV-Org/PyAV .
-
-TACTYC products were studied only through their public product descriptions.
-This independently implemented plugin contains no TACTYC code, branding, or paid assets.

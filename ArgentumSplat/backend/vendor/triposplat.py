@@ -574,8 +574,7 @@ class TripoSplatPipeline:
                 Recommend: 1.
             show_progress: Print a `tqdm` progress bar over sampler steps.
             callback: Optional `fn(step, total)` invoked after each sampler step.
-                Useful for external progress UIs (e.g. ComfyUI's
-                `ProgressBar.update`).
+                Useful for external progress UIs.
 
         Returns:
             `(gaussian, prepared_image)` for an `int` `num_gaussians`, or

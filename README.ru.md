@@ -4,7 +4,7 @@
 
 [Скачать](https://github.com/OlehandroStox/argentum-splat/releases) · [English](README.md) · [Все настройки](docs/controls.ru.md) · [Сообщить об ошибке](https://github.com/OlehandroStox/argentum-splat/issues/new/choose)
 
-> **Предварительная версия 0.3.1.** Пока используются временные ID `1000007–1000009`. Если другой плагин занимает те же ID, возможен конфликт. Сначала проверьте установку в отдельной папке настроек C4D. ID — внутренние идентификаторы плагина, а не лицензия или ключ активации.
+> **Предварительная версия 0.3.2.** Пока используются временные ID `1000007–1000009`. Если другой плагин занимает те же ID, возможен конфликт. Сначала проверьте установку в отдельной папке настроек C4D. ID — внутренние идентификаторы плагина, а не лицензия или ключ активации.
 
 ![Домик: вращение одной сгенерированной Gaussian-модели в отдельном проверочном Gaussian-рендерере, не запись интерфейса C4D](docs/media/house-orbit.gif)
 
@@ -26,7 +26,7 @@ GIF показывает одну модель из одного изображ�
 
 ## Быстрая установка
 
-1. В [Releases](https://github.com/OlehandroStox/argentum-splat/releases) скачайте **ArgentumSplat-0.3.1-C4D2027-Windows.zip**. Нужен этот файл, не автоматический архив Source code.
+1. В [Releases](https://github.com/OlehandroStox/argentum-splat/releases) скачайте **ArgentumSplat-0.3.2-C4D2027-Windows.zip**. Нужен этот файл, не автоматический архив Source code.
 2. Распакуйте архив и закройте Cinema 4D.
 3. Запустите **ArgentumSplat/Install.cmd**. Либо скопируйте папку **ArgentumSplat целиком** в `plugins` внутри пользовательской папки настроек C4D 2027. Её можно открыть кнопкой **Open Preferences Folder** в настройках C4D.
 4. Запустите C4D → **Extensions → ArgentumSplat → Argentum Splat**.
@@ -81,7 +81,7 @@ Point Preview облегчает рисование во viewport, но полн
 
 ## Поддержать разработку
 
-**[☕ Поддержать автора на Boosty](https://boosty.to/olehandrostox)**
+**[☕ Поддержать автора на Boosty](https://boosty.to/olehandrostox/donate)**
 
 Та же ссылка есть в плагине: **Status → Support the author - Boosty**. Открывается только по нажатию.
 
@@ -91,4 +91,4 @@ Point Preview облегчает рисование во viewport, но полн
 
 Интеграция — [MIT](LICENSE), автор **[OlehandroStox / ARGENTUM](https://github.com/OlehandroStox)**. AI — [TripoSplat от Tripo AI / VAST AI Research](https://github.com/VAST-AI-Research/TripoSplat), конвертация — [PlayCanvas splat-transform](https://github.com/playcanvas/splat-transform).
 
-Built with DINOv3. Веса и сторонние компоненты сохраняют свои лицензии, включая DINOv3 License и Apache 2.0 для FLUX.2 autoencoder. [Полные уведомления](ArgentumSplat/backend/THIRD_PARTY_NOTICES.md). Плагин не связан с Maxon или TACTYC; чужой закрытый код и платные материалы не включены.
+Built with DINOv3. Веса и сторонние компоненты сохраняют свои лицензии, включая DINOv3 License и Apache 2.0 для FLUX.2 autoencoder. [Полные уведомления](ArgentumSplat/backend/THIRD_PARTY_NOTICES.md). Независимая разработка, не связанная с Maxon.
