@@ -38,6 +38,7 @@ def describe(op, description, flags):
         (I.INPUT_MODE, c4d.DTYPE_LONG, 2000, 'Input Mode', 1),
         (I.SOURCE_FRAME, c4d.DTYPE_LONG, 2000, 'Source Frame / Sequence Offset (0 = First)', 99999),
         (I.PREVIEW_SOURCE, c4d.DTYPE_BUTTON, 2000, 'Preview Selected Frame', 0),
+        (I.SUPPORT_AUTHOR, c4d.DTYPE_BUTTON, 2006, 'Support the author - Boosty', 0),
     )
     for key, datatype, group, label, maximum in controls:
         did = c4d.DescID(c4d.DescLevel(key, datatype, 0))

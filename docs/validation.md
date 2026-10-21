@@ -2,6 +2,10 @@
 
 Version 0.3.0 was tested on **Windows, Cinema 4D 2027.0.0 and NVIDIA RTX 4070 12 GB**. These results describe that setup; they are not a compatibility guarantee for other versions or hardware.
 
+## 0.3.1 support button
+
+The 95 portable tests pass again. In the running C4D 2027.0.0 instance, the button description was verified below Status. Its command dispatch was checked with browser success, failure and exception responses: the exact Boosty URL was requested, and object data and Status stayed unchanged. These checks used refreshed Python callbacks; a cold application restart and a real donation were not tested for this patch. Generation and rendering code were not changed.
+
 ## Portable tests
 
 95 tests were run with Pillow and PyAV installed, without skipped media tests. They cover:

@@ -86,6 +86,7 @@ Colour correction reuses the geometry but still processes each loaded splat. Lar
 | Redshift Material | Editable node-material link. |
 | Create MoGraph Fracture Rig | Create a native Fracture in Explode Segments mode. Each card is a segment; add effectors to the Fracture. Point Preview is disabled for this rig. Existing object PSR tracks retain their coordinate system. |
 | Status | Current operation, final result or useful error text. Remains available after the progress window closes. |
+| Support the author - Boosty | Optional support link below Status. Opens the author's Boosty page in your default browser only when clicked. The plugin remains free. |
 
 SH and camera-facing calculations occur before deformers/effectors, not separately for each deformed segment or reflected ray.
 

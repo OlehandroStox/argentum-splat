@@ -1,8 +1,11 @@
-ARGENTUM SPLAT 0.3.0 — Cinema 4D 2027 / Windows / Redshift
+ARGENTUM SPLAT 0.3.1 — Cinema 4D 2027 / Windows / Redshift
 
 Бесплатная предварительная версия с открытым исходным кодом.
 Проект: https://github.com/OlehandroStox/argentum-splat
 Русский справочник: https://github.com/OlehandroStox/argentum-splat/blob/main/README.ru.md
+
+Под Status: Support the author - Boosty — добровольная поддержка автора.
+https://boosty.to/olehandrostox
 
 УСТАНОВКА
 Закройте Cinema 4D. Распакуйте весь архив и запустите Install.cmd.

@@ -504,7 +504,8 @@ class SplatObject(c4d.plugins.ObjectData):
         if message == c4d.MSG_DESCRIPTION_COMMAND and data:
             action = data["id"][0].id
             if action in (I.INITIALISE,I.GENERATE,I.CANCEL,I.SETUP,I.OPEN_OUTPUT,I.MOGRAPH,
-                          I.DETAIL_PRESET,I.PREPARE_REDSHIFT,I.SOURCE_CAMERA,I.PREVIEW_SOURCE):
+                          I.DETAIL_PRESET,I.PREPARE_REDSHIFT,I.SOURCE_CAMERA,I.PREVIEW_SOURCE,
+                          I.SUPPORT_AUTHOR):
                 PENDING.append((self, action))
                 c4d.SpecialEventAdd(I.MESSAGE_ID)
         return True
@@ -792,6 +793,17 @@ class Coordinator(c4d.plugins.MessageData):
             return True
         while PENDING:
             instance, action = PENDING.pop(0)
+            if action == I.SUPPORT_AUTHOR:
+                # A browser action must not rebuild geometry or overwrite job status.
+                import webbrowser
+                url = 'https://boosty.to/olehandrostox'
+                try:
+                    opened = webbrowser.open_new_tab(url)
+                except Exception:
+                    opened = False
+                if not opened:
+                    print('Argentum Splat: Support the author at ' + url)
+                continue
             try:
                 if action == I.CANCEL:
                     instance.cancel()

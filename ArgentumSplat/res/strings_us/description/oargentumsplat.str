@@ -53,6 +53,7 @@ AS_MATERIAL "Redshift Material";
 AS_MOGRAPH "Create MoGraph Fracture Rig";
 STATUS_GROUP "STATUS";
 AS_STATUS "Status";
+AS_SUPPORT_AUTHOR "Support the author - Boosty";
 AS_SH_OFF "Off - Base Colour";
 AS_SH_ONE "SH 1 - Subtle";
 AS_SH_TWO "SH 2";

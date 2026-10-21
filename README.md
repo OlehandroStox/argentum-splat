@@ -18,7 +18,7 @@
 
 Generate a static 3D Gaussian model from one image with **local TripoSplat inference**, or load an existing Gaussian scan. Adjust its appearance, render it with Redshift, and use Cinema 4D deformers and MoGraph.
 
-> **Preview release:** version 0.3.0 uses development plugin IDs `1000007–1000009`, not registered permanent Maxon IDs. They can conflict with another plugin using those IDs. Test in a separate C4D preferences folder before production use. [Details and compatibility](docs/installation.md#plugin-ids).
+> **Preview release:** version 0.3.1 uses development plugin IDs `1000007–1000009`, not registered permanent Maxon IDs. They can conflict with another plugin using those IDs. Test in a separate C4D preferences folder before production use. [Details and compatibility](docs/installation.md#plugin-ids).
 
 ## See the result
 
@@ -47,7 +47,7 @@ Your media stays local. Initial setup downloads dependencies and model weights; 
 
 ## Install
 
-1. Download **`ArgentumSplat-0.3.0-C4D2027-Windows.zip`** from [Releases](https://github.com/OlehandroStox/argentum-splat/releases). Choose the named asset, not GitHub's automatic “Source code” archive.
+1. Download **`ArgentumSplat-0.3.1-C4D2027-Windows.zip`** from [Releases](https://github.com/OlehandroStox/argentum-splat/releases). Choose the named asset, not GitHub's automatic “Source code” archive.
 2. Extract the ZIP. Close Cinema 4D and run **`ArgentumSplat/Install.cmd`**. Or copy the whole `ArgentumSplat` folder into the `plugins` folder inside your C4D 2027 preferences directory.
 3. Start C4D → **Extensions → ArgentumSplat → Argentum Splat**.
 4. For image/video generation, click **Set Up AI / Extra Formats** once. Wait for **Status** to report completion.
@@ -115,6 +115,8 @@ Found a bug? [Open an issue](https://github.com/OlehandroStox/argentum-splat/iss
 ## Support the project
 
 **[☕ Support the author on Boosty](https://boosty.to/olehandrostox)**
+
+The same optional link is available inside the plugin: **Status → Support the author - Boosty**. It opens only when clicked.
 
 Argentum Splat is free. If it saves you time, an optional tip helps support development. No donation is required to download or use this release. A star, a useful bug report, or an example made with the plugin also helps others find it. You can credit **Argentum Splat for Cinema 4D** and link this repository when sharing your work.
 

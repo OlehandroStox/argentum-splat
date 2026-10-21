@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.1 — 2026-10-21
+
+- Add a quiet **Support the author - Boosty** button below Status in the object's Attributes.
+- Open the author's Boosty page in the default browser only on click. No reminders, automatic network requests, or changes to generation/rendering.
+
 ## 0.3.0 — 2026-10-21 — first public preview
 
 - Unified Input File for images, ready-made splats and video.
