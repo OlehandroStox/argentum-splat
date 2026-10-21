@@ -115,7 +115,7 @@ def card_axes(splat, camera, global_scale, splat_scale, flip_y, camera_facing):
     return center, u, v, normal
 
 
-def smooth_normals(centers, normals, widths, passes):
+def smooth_normals(centers, normals, widths, passes, progress=None):
     """Spatial grid smoothing with hemisphere alignment, O(passes * N)."""
     if len(centers) != len(normals) or len(centers) != len(widths):
         raise ValueError("Normal smoothing arrays must have equal lengths.")
@@ -128,30 +128,49 @@ def smooth_normals(centers, normals, widths, passes):
     cell = max(1e-8, statistics.median(widths) * 2.)
     keys = [tuple(math.floor(c / cell) for c in p) for p in centers]
     result = normals
-    for _ in range(min(8, max(0, passes))):
+    for pass_index in range(min(8, max(0, passes))):
         sums = {}
-        for key, n in zip(keys, result):
-            ref, accum, count = sums.get(key, (n, (0., 0., 0.), 0))
-            sums[key] = (ref, add(accum, n if dot(ref, n) >= 0 else mul(n, -1)), count+1)
+        for index, (key, n) in enumerate(zip(keys, result)):
+            if progress and index % 2048 == 0:
+                progress('Smooth normals', pass_index*2*len(centers)+index, 2*passes*len(centers))
+            group = sums.get(key)
+            if group is None:
+                sums[key] = [n, n[0], n[1], n[2], 1]
+            else:
+                ref = group[0]
+                sign = 1. if ref[0]*n[0]+ref[1]*n[1]+ref[2]*n[2] >= 0 else -1.
+                group[1] += n[0]*sign
+                group[2] += n[1]*sign
+                group[3] += n[2]*sign
+                group[4] += 1
         new = []
-        for key, n in zip(keys, result):
-            accum = mul(n, 2.)
-            for axis in ((0,0,0),(1,0,0),(-1,0,0),(0,1,0),(0,-1,0),(0,0,1),(0,0,-1)):
-                group = sums.get(tuple(key[i]+axis[i] for i in range(3)))
+        for index, (key, n) in enumerate(zip(keys, result)):
+            if progress and index % 2048 == 0:
+                progress('Smooth normals', (pass_index*2+1)*len(centers)+index, 2*passes*len(centers))
+            ax, ay, az = n[0]*2., n[1]*2., n[2]*2.
+            x,y,z = key
+            for neighbor in ((x,y,z),(x+1,y,z),(x-1,y,z),(x,y+1,z),(x,y-1,z),(x,y,z+1),(x,y,z-1)):
+                group = sums.get(neighbor)
                 if group:
-                    avg = mul(group[1], 1./group[2])
-                    accum = add(accum, avg if dot(avg, n) >= 0 else mul(avg, -1.))
-            new.append(norm(accum))
+                    inv = 1./group[4]
+                    gx,gy,gz = group[1]*inv, group[2]*inv, group[3]*inv
+                    sign = 1. if gx*n[0]+gy*n[1]+gz*n[2] >= 0 else -1.
+                    ax += gx*sign
+                    ay += gy*sign
+                    az += gz*sign
+            new.append(norm((ax,ay,az)))
         result = new
     return result
 
 
-def prepare_geometry(cloud, settings, camera=(0., 0., -500.)):
+def prepare_geometry(cloud, settings, camera=(0., 0., -500.), progress=None):
     """Build spatial data independently of color and surface weights."""
     centers, u_axes, v_axes, normals, widths = [], [], [], [], []
     scale = settings.get("scale", 100.)
     flip_y = settings.get("flip_y", False)
-    for splat in cloud.splats:
+    for index, splat in enumerate(cloud.splats):
+        if progress and index % 2048 == 0:
+            progress('Prepare geometry', index, len(cloud.splats))
         center, u, v, normal = card_axes(splat, camera, scale,
             settings.get("splat_scale", 1.), flip_y, settings.get("camera_facing", False))
         centers.append(center)
@@ -159,11 +178,11 @@ def prepare_geometry(cloud, settings, camera=(0., 0., -500.)):
         v_axes.append(v)
         normals.append(normal)
         widths.append(math.hypot(*u))
-    normals = smooth_normals(centers, normals, widths, settings.get("smoothing", 0))
+    normals = smooth_normals(centers, normals, widths, settings.get("smoothing", 0), progress)
     return centers, u_axes, v_axes, normals
 
 
-def prepare_colors(cloud, settings, camera=(0., 0., -500.), centers=None):
+def prepare_colors(cloud, settings, camera=(0., 0., -500.), centers=None, progress=None):
     """Evaluate only the appearance, reusing already prepared centers."""
     if centers is not None and len(centers) != len(cloud.splats):
         raise ValueError("Color preparation needs one center per splat.")
@@ -177,6 +196,8 @@ def prepare_colors(cloud, settings, camera=(0., 0., -500.), centers=None):
         saturation=settings.get("saturation", 1.), level=settings.get("level", 1.),
         highlight=settings.get("highlight", 3.), color_mode=settings.get("color_mode", 0))
     for index, splat in enumerate(cloud.splats):
+        if progress and index % 2048 == 0:
+            progress('Prepare colour', index, len(cloud.splats))
         # Graphdeco convention: view direction is camera -> splat in source coordinates.
         if degree and strength and splat.sh:
             center = (centers[index] if centers is not None else

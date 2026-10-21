@@ -22,19 +22,19 @@ Labels match the plugin's English interface. Decimal LOOK controls increment by 
 | Set Up AI / Extra Formats | Install the isolated Python AI environment and the optional format converter. Requires internet during setup. |
 | Open Output Folder | Open the output location in Explorer. |
 
-The progress window reports real stages, available percentages and elapsed time. Setup/conversion stages without a measurable total show activity, not a fabricated percentage. Synchronous C4D geometry construction may briefly block the editor and is not cancelled by the background-worker button.
+The progress window covers generation, conversion, **SCAN reading, geometry preparation and C4D assembly**. It reports the stage, available progress and elapsed time. Setup/conversion stages without a measurable total show activity. Scan reading/calculation runs in a worker; C4D geometry is assembled in short UI-thread batches. Cancel also stops scan loading and assembly, keeping the previous complete model. A single native allocation/commit must finish before cancellation can take effect.
 
 ## Scan and detail
 
 | Control | Meaning / when to use it |
 | --- | --- |
-| Splat File | Direct source path for an existing scan. Use Initialise / Reload after changing it. The unified Input File is an alternative. |
+| Splat File | Direct source path for an existing scan. Loading is queued after changes settle; Initialise / Reload starts it immediately or retries a cancelled/failed request. The unified Input File is an alternative. |
 | View-Dependent Colour | Evaluate up to SH1, SH2 or SH3 if the file contains those coefficients. Off keeps the base colour. TripoSplat outputs SH0, so its SH controls are unavailable. |
 | Camera-Facing Cards | Project the Gaussian covariance into the selected camera plane. Off uses the two largest Gaussian axes for each card. Camera-facing mode needs extra work as the camera moves. |
 | Projection Camera | Explicit camera for SH and camera-facing cards. Empty uses the render camera, falling back to the editor camera. |
 | SPZ: Unconverted Coordinates | Keep SPZ's source RUB coordinates. Normally position, rotation and SH are converted together. Flip Y is applied afterward. |
 | Normal Smoothing Passes | 0 disables; 1–8 averages nearby normals with aligned orientation. Does not blur the positions. |
-| Initialise / Reload | Re-read the file, invalidate caches and create/update the material. It does not rerun AI. |
+| Initialise / Reload | Load or refresh the scan with progress and Cancel. Unchanged source/settings reuse prepared data; file timestamp/size and loading settings invalidate the relevant caches. It does not rerun AI. |
 | Source Fidelity – Preserve Detail | Set Emission 1, Diffuse 0, Subsurface 0; enable camera-facing cards; clear Projection Camera; lower Minimum Opacity to at most 1/255. Keeps smaller thresholds. Undo supported. |
 | Set Redshift Detail Quality | Raise transparency depth to at least 128, Unified Min Samples to 16 and Max Samples to 128. Keeps higher existing settings. Changes the current document only on explicit use; Undo supported. Can increase render time. |
 | Create Estimated Source Camera | Create an editable camera from new AI metadata in adjacent `generation.json`. It is an estimate for square `prepared.png`, not calibrated photo reconstruction. Does not replace the active camera. |
@@ -66,12 +66,16 @@ Weights are stored per object in vertex maps, so separate objects can share the 
 
 Colour correction reuses the geometry but still processes each loaded splat. Large scans cost more CPU time.
 
+Interactive updates wait for 0.3 seconds without changes. While you drag a slider or orbit a camera, the last complete model stays visible; obsolete calculations are cancelled. SH changes update colour only when Camera-Facing Cards is off. Camera-facing projection still needs new geometry. Final render/export computes the requested state without waiting for this UI debounce.
+
 ## Viewport
 
 | Control | Meaning |
 | --- | --- |
 | Point Preview | Draw lightweight coloured points in the editor. Redshift IPR and final rendering still receive the full loaded card geometry. |
 | Preview Points (0 = All) | Limit editor point drawing only. 0 draws all loaded points, after Maximum Splats and opacity filtering. Does not lower full-geometry memory usage. |
+
+For large scans, keep **Point Preview on** and start with **10,000 Preview Points**. Use fewer preview points if drawing is slow. Camera-Facing Cards off avoids geometry updates on camera movement. Maximum Splats controls render-geometry memory and preparation cost; Preview Points controls only editor drawing. Parsing still validates the whole source file, so multi-million-splat files need time on their first load.
 
 ## Advanced and motion
 

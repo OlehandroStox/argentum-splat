@@ -146,7 +146,7 @@ def _scales(logs, context):
 
 class _Sampler:
     """Deterministic Algorithm R reservoir over all opacity-eligible records."""
-    def __init__(self, limit, min_opacity):
+    def __init__(self, limit, min_opacity, progress=None):
         self.limit = limit
         self.min_opacity = min_opacity
         self.items = []
@@ -154,22 +154,34 @@ class _Sampler:
         self.rng = random.Random(0x415247454E54554D)
         self.minimum = [math.inf] * 3
         self.maximum = [-math.inf] * 3
+        self.progress = progress
 
-    def add(self, index, splat):
-        for axis, value in enumerate(splat.position):
-            self.minimum[axis] = min(value, self.minimum[axis])
-            self.maximum[axis] = max(value, self.maximum[axis])
-        if splat.opacity < self.min_opacity:
-            return
+    def choose(self, index, position, opacity):
+        """Reserve a reservoir slot before allocating attributes for a record."""
+        for axis, value in enumerate(position):
+            if value < self.minimum[axis]:
+                self.minimum[axis] = value
+            if value > self.maximum[axis]:
+                self.maximum[axis] = value
+        if opacity < self.min_opacity:
+            return None
         self.eligible += 1
         if len(self.items) < self.limit:
-            self.items.append((index, splat))
-        else:
-            selected = self.rng.randrange(self.eligible)
-            if selected < self.limit:
-                self.items[selected] = (index, splat)
+            self.items.append(None)
+            return len(self.items) - 1
+        selected = self.rng.randrange(self.eligible)
+        return selected if selected < self.limit else None
 
-    def finish(self, total, metadata, space):
+    def add(self, index, splat):
+        selected = self.choose(index, splat.position, splat.opacity)
+        if selected is not None:
+            self.items[selected] = (index, splat)
+
+    def report(self, stage, done, total):
+        if self.progress is not None:
+            self.progress(stage, done, total)
+
+    def finish(self, total, metadata, space, decode=None):
         metadata.update({
             "eligible_count": self.eligible,
             "filtered_count": total - self.eligible,
@@ -180,8 +192,15 @@ class _Sampler:
             "bounds": (tuple(self.minimum), tuple(self.maximum)) if total else None,
         })
         items = sorted(self.items, key=lambda pair: pair[0])
-        splats = [replace(splat, color=source_to_linear(splat.raw_color, space),
-                          input_color_space=space) for _, splat in items]
+        splats = []
+        for i, (_, splat) in enumerate(items):
+            if i % 2048 == 0:
+                self.report('Decode colour', i, len(items))
+            if decode is not None:
+                splat = decode(splat)
+            splats.append(replace(splat, color=source_to_linear(splat.raw_color, space),
+                                 input_color_space=space))
+        self.report('Decode colour', len(items), len(items))
         return SplatCloud(splats, total, metadata)
 
 
@@ -404,6 +423,46 @@ def _make_vertex(values, index, gaussian, props, rest_count, point_radius):
     return Splat(position, raw, opacity, scales, rotation, sh, raw, "linear")
 
 
+def _load_binary_gaussians(stream, vertex, endian, sampler, rest_count):
+    """Validate every scalar, but only materialise retained Gaussian records.
+
+    The same reservoir and validation rules apply to the generic reader. Large
+    SH scans avoid millions of temporary dictionaries and coefficient tuples.
+    """
+    names = [p.name for p in vertex.properties]
+    codec = struct.Struct(endian + ''.join(_TYPES[p.value_type][0] for p in vertex.properties))
+    xyz = tuple(names.index(k) for k in ('x', 'y', 'z'))
+    dc = tuple(names.index('f_dc_%d' % i) for i in range(3))
+    scales_ix = tuple(names.index('scale_%d' % i) for i in range(3))
+    rotation_ix = tuple(names.index('rot_%d' % i) for i in range(4))
+    rest_ix = tuple(names.index('f_rest_%d' % i) for i in range(rest_count))
+    opacity_ix = names.index('opacity')
+    block_records = max(1, 1048576 // codec.size)
+    for start in range(0, vertex.count, block_records):
+        sampler.report('Read PLY', start, vertex.count)
+        count = min(block_records, vertex.count - start)
+        block = _read_exact(stream, count * codec.size, 'PLY vertex')
+        for offset, values in enumerate(codec.iter_unpack(block)):
+            index = start + offset
+            context = 'PLY vertex %d' % index
+            _finite(values, context)
+            position = tuple(values[k] for k in xyz)
+            scales = _scales((values[k] for k in scales_ix), context)
+            rotation = tuple(values[k] for k in rotation_ix)
+            if not any(rotation):
+                raise SplatFormatError(context + ': zero quaternion.')
+            opacity = _sigmoid(values[opacity_ix])
+            slot = sampler.choose(index, position, opacity)
+            if slot is None:
+                continue
+            raw = tuple(.5 + SH_C0 * values[k] for k in dc)
+            _finite(raw, context)
+            splat = Splat(position, raw, opacity, scales, _quaternion(rotation, context),
+                          tuple(values[k] for k in rest_ix), raw, 'linear')
+            sampler.items[slot] = (index, splat)
+    sampler.report('Read PLY', vertex.count, vertex.count)
+
+
 def _load_ply(stream, sampler, requested_space, point_radius):
     fmt, elements, comments = _header(stream)
     # PlayCanvas compressed PLY uses chunk bounds plus packed vertex properties.
@@ -421,9 +480,15 @@ def _load_ply(stream, sampler, requested_space, point_radius):
             declared_spaces.append(_space(match.group(1)))
     supplements = {}
     for element in elements:
+        if element.name == 'vertex' and gaussian and fmt != 'ascii':
+            _load_binary_gaussians(stream, element,
+                '<' if fmt == 'binary_little_endian' else '>', sampler, rest_count)
+            continue
         records = (_ascii_records(stream, element) if fmt == "ascii" else
                    _binary_records(stream, element, "<" if fmt == "binary_little_endian" else ">"))
         for index, values in enumerate(records):
+            if index % 2048 == 0:
+                sampler.report('Read PLY ' + element.name, index, element.count)
             if element.name == "vertex":
                 sampler.add(index, _make_vertex(values, index, gaussian, props, rest_count, point_radius))
             else:
@@ -478,6 +543,7 @@ def _load_splat(stream, sampler, requested_space):
     codec = struct.Struct("<6f8B")
     index = 0
     while index < count:
+        sampler.report('Read SPLAT', index, count)
         block_count = min(32768, count - index)
         block = _read_exact(stream, block_count * 32, "SPLAT")
         for values in codec.iter_unpack(block):
@@ -485,22 +551,33 @@ def _load_splat(stream, sampler, requested_space):
             scales = tuple(values[3:6])
             if any(v <= 0 for v in scales):
                 raise SplatFormatError(f"SPLAT record {index}: scales must be positive.")
-            raw = tuple(c / 255.0 for c in values[6:9])
-            rotation = _quaternion(tuple((v - 128) / 128.0 for v in values[10:14]),
-                                   f"SPLAT record {index}")
-            sampler.add(index, Splat(tuple(values[:3]), raw, values[9] / 255.0,
-                                     scales, rotation, (), raw, "linear"))
+            rotation_bytes = values[10:14]
+            if all(v == 128 for v in rotation_bytes):
+                raise SplatFormatError(f"SPLAT record {index}: zero quaternion.")
+            position, opacity = tuple(values[:3]), values[9] / 255.0
+            slot = sampler.choose(index, position, opacity)
+            if slot is not None:
+                # Keep validated scalar data; decode attributes only for the
+                # final reservoir, not each record later replaced in it.
+                sampler.items[slot] = (index, values)
             index += 1
+            if index % 2048 == 0:
+                sampler.report('Read SPLAT', index, count)
     space = "srgb" if requested_space == "auto" else requested_space
+    def decode(values):
+        raw = tuple(c / 255.0 for c in values[6:9])
+        rotation = _quaternion(tuple((v - 128) / 128.0 for v in values[10:14]), 'SPLAT')
+        return Splat(tuple(values[:3]), raw, values[9] / 255.0,
+                     tuple(values[3:6]), rotation, (), raw, 'linear')
     return sampler.finish(count, {
         "format": "splat", "encoding": "binary_little_endian", "kind": "gaussian",
         "has_sh": False, "sh_degree": 0, "source_color_space": None,
         "color_space_assumed": requested_space == "auto",
-    }, space)
+    }, space, decode)
 
 
 def load(path, max_splats=60000, min_opacity=0.02, *, point_radius=0.01,
-         color_space="auto", unconverted_coordinates=False):
+         color_space="auto", unconverted_coordinates=False, progress=None):
     """Read and validate every source record, retaining a bounded random sample.
 
     Sampling is deterministic and covers the entire file after opacity filtering.
@@ -523,8 +600,8 @@ def load(path, max_splats=60000, min_opacity=0.02, *, point_radius=0.01,
         from .spz import load_spz
         return load_spz(path, max_splats=max_splats, min_opacity=min_opacity,
                         unconverted_coordinates=unconverted_coordinates,
-                        color_space=requested_space)
-    sampler = _Sampler(max_splats, min_opacity)
+                        color_space=requested_space, progress=progress)
+    sampler = _Sampler(max_splats, min_opacity, progress)
     with path.open("rb") as stream:
         if suffix == ".ply":
             cloud = _load_ply(stream, sampler, requested_space, point_radius)

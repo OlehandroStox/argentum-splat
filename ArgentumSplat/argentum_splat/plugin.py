@@ -9,6 +9,7 @@ import weakref
 from dataclasses import replace
 import c4d
 from . import core, geometry, materials, assets, input_source, job_progress, ids as I
+from .scene_jobs import InteractiveScan
 
 ROOT = Path(__file__).resolve().parents[1]
 RUNTIME = Path(os.environ.get("LOCALAPPDATA", str(ROOT))) / "ArgentumSplat" / "runtime"
@@ -145,7 +146,19 @@ def projection_camera(op):
     return vector_tuple(~op.GetMg() * position)
 
 
+def complete_steps(steps):
+    while True:
+        try:
+            next(steps)
+        except StopIteration as finished:
+            return finished.value
+
+
 def build_mesh(cloud, prepared, material, opacity=1., weights=None):
+    return complete_steps(build_mesh_steps(cloud, prepared, material, opacity, weights))
+
+
+def build_mesh_steps(cloud, prepared, material, opacity=1., weights=None):
     count = len(cloud.splats)
     mesh = c4d.PolygonObject(count*4, count)
     mesh.SetName("Gaussian Cards")
@@ -169,6 +182,8 @@ def build_mesh(cloud, prepared, material, opacity=1., weights=None):
     corners = dict(a=c4d.Vector(0,0,0), b=c4d.Vector(1,0,0),
                    c=c4d.Vector(1,1,0), d=c4d.Vector(0,1,0))
     for n, splat in enumerate(cloud.splats):
+        if n % 1024 == 0:
+            yield ('Build Gaussian cards', n, count)
         center, u, v = c4d.Vector(*centers[n]), c4d.Vector(*us[n]), c4d.Vector(*vs[n])
         points.extend((center-u-v, center+u-v, center+u+v, center-u+v))
         j = n*4
@@ -181,6 +196,8 @@ def build_mesh(cloud, prepared, material, opacity=1., weights=None):
         normal = c4d.Vector(*normals[n])
         c4d.NormalTag.Set(normal_data,n,dict(a=normal,b=normal,c=normal,d=normal))
     mesh.SetAllPoints(points)
+    del points
+    yield ('Apply opacity', count, count)
     alpha_tag.SetAllHighlevelData(alphas)
     weights = weights or materials.DEFAULTS
     for name, setting in (
@@ -192,6 +209,7 @@ def build_mesh(cloud, prepared, material, opacity=1., weights=None):
         tag.SetName(name)
         mesh.InsertTag(tag)
         tag.SetAllHighlevelData([float(weights[setting])]*(count*4))
+        yield ('Apply ' + name, count, count)
     if material:
         texture = c4d.TextureTag()
         texture[c4d.TEXTURETAG_MATERIAL] = material
@@ -217,6 +235,13 @@ def cache_mesh(cache):
 def update_mesh_attributes(mesh, cloud, prepared, opacity, weights,
                            update_colors=False, update_opacity=False,
                            update_weights=False, material=None, update_material=False):
+    return complete_steps(update_mesh_steps(mesh, cloud, prepared, opacity, weights,
+        update_colors, update_opacity, update_weights, material, update_material))
+
+
+def update_mesh_steps(mesh, cloud, prepared, opacity, weights,
+                      update_colors=False, update_opacity=False,
+                      update_weights=False, material=None, update_material=False):
     """Update an owned clone's attributes, leaving points/UV/normals untouched.
 
     Never pass op.GetCache() directly: it belongs to Cinema 4D and may be in use
@@ -231,14 +256,19 @@ def update_mesh_attributes(mesh, cloud, prepared, opacity, weights,
         data = tag.GetDataAddressW()
         colors = prepared[4]
         for index, splat in enumerate(cloud.splats):
+            if index % 1024 == 0:
+                yield ('Update colour / opacity', index, count)
             rgba = c4d.Vector4d(*colors[index], min(1., max(0., splat.opacity * opacity)))
             for corner in range(4):
                 c4d.VertexColorTag.SetPoint(data, None, None, 4 * index + corner, rgba)
         tag.SetDirty(c4d.DIRTYFLAGS_DATA)
         tag.Message(c4d.MSG_UPDATE)
     if update_opacity:
-        values = [min(1., max(0., splat.opacity * opacity))
-                  for splat in cloud.splats for _ in range(4)]
+        values = []
+        for index, splat in enumerate(cloud.splats):
+            if index % 2048 == 0:
+                yield ('Update opacity', index, count)
+            values.extend([min(1., max(0., splat.opacity * opacity))]*4)
         tag = tags["SplatOpacity"]
         tag.SetAllHighlevelData(values)
         tag.SetDirty(c4d.DIRTYFLAGS_DATA)
@@ -253,6 +283,7 @@ def update_mesh_attributes(mesh, cloud, prepared, opacity, weights,
             tag.SetAllHighlevelData([float(weights[setting])] * (count * 4))
             tag.SetDirty(c4d.DIRTYFLAGS_DATA)
             tag.Message(c4d.MSG_UPDATE)
+            yield ('Update ' + tag_name, count, count)
     if update_material:
         texture = mesh.GetTag(c4d.Ttexture)
         if material is None:
@@ -271,7 +302,7 @@ def update_mesh_attributes(mesh, cloud, prepared, opacity, weights,
     return mesh
 
 
-class SplatObject(c4d.plugins.ObjectData):
+class SplatObject(InteractiveScan, c4d.plugins.ObjectData):
     def __init__(self):
         super().__init__()
         self.op = None
@@ -335,8 +366,7 @@ class SplatObject(c4d.plugins.ObjectData):
             path = cached_path
             is_converted = True
         stat = os.stat(path)
-        key = (path, stat.st_mtime_ns, stat.st_size, int(op[I.MAX_SPLATS]),
-               float(op[I.MIN_OPACITY]), bool(op[I.SPZ_RAW]),original_path)
+        key = self.source_key(op)
         if force or key != self.load_key:
             cloud = None if force else CLOUD_CACHE.get(key)
             if cloud is None:
@@ -364,19 +394,20 @@ class SplatObject(c4d.plugins.ObjectData):
         if cloud is None:
             return None
         camera_dependent = bool(op[I.CAMERA_FACING] or
-                                (op[I.SH_DEGREE] and cloud.metadata.get("sh_degree",0)))
+                                (op[I.SH_DEGREE] and op[I.SH_STRENGTH] and cloud.metadata.get("sh_degree",0)))
         camera = projection_camera(op) if camera_dependent else (0.,0.,-500.)
         values = settings(op)
         doc = op.GetDocument()
+        spatial_camera = camera if op[I.CAMERA_FACING] else (0.,0.,-500.)
         spatial_key = (self.load_key, tuple(values[k] for k in (
-            "scale", "splat_scale", "flip_y", "camera_facing", "smoothing")), camera)
-        color_camera = camera if op[I.SH_DEGREE] and cloud.metadata.get("sh_degree", 0) else None
+            "scale", "splat_scale", "flip_y", "camera_facing", "smoothing")), spatial_camera)
+        color_camera = camera if op[I.SH_DEGREE] and op[I.SH_STRENGTH] and cloud.metadata.get("sh_degree", 0) else None
         color_key = (self.load_key, tuple(values[k] for k in (
             "scale", "flip_y", "sh_degree", "sh_strength", "gamma", "contrast",
             "hue", "saturation", "level", "highlight", "color_mode")),
             color_camera, color_configuration_key(doc))
         if spatial_key != getattr(self, "spatial_key", None):
-            self.spatial = geometry.prepare_geometry(cloud, values, camera)
+            self.spatial = geometry.prepare_geometry(cloud, values, spatial_camera)
             self.spatial_key = spatial_key
             positions, us, vs = self.spatial[:3]
             self.bounds = []
@@ -397,6 +428,14 @@ class SplatObject(c4d.plugins.ObjectData):
         return self.prepared
 
     def GetVirtualObjects(self, op, hierarchyhelp):
+        flags = self.GetVirtualObjectsBuildFlags()
+        render = bool(flags & (c4d.BUILDFLAGS_EXTERNALRENDERER |
+            c4d.BUILDFLAGS_INTERNALRENDERER | c4d.BUILDFLAGS_MAKEEDITABLE | c4d.BUILDFLAGS_EXPORT))
+        if not render and is_open_document(op.GetDocument()):
+            return self.interactive_cache(op)
+        return self.synchronous_cache(op, hierarchyhelp)
+
+    def synchronous_cache(self, op, hierarchyhelp):
         try:
             prepared = self.prepare(op)
             if prepared is None:
@@ -459,7 +498,7 @@ class SplatObject(c4d.plugins.ObjectData):
 
     def Draw(self, op, drawpass, bd, bh):
         prepared = self.prepared
-        if drawpass != c4d.DRAWPASS_OBJECT or not op[I.POINT_PREVIEW] or not prepared:
+        if drawpass != c4d.DRAWPASS_OBJECT or not op[I.FILE] or not op[I.POINT_PREVIEW] or not prepared:
             return c4d.DRAWRESULT_SKIP
         positions, _, _, _, colors = prepared
         limit = int(op[I.PREVIEW_COUNT])
@@ -518,7 +557,7 @@ class SplatObject(c4d.plugins.ObjectData):
             return str(op[I.FILE] or "").lower().endswith(".spz")
         if key == I.CANCEL:
             return self.job is not None
-        if key in (I.GENERATE,I.SETUP,I.PREVIEW_SOURCE,I.IMAGE,I.INPUT_MODE,
+        if key in (I.INITIALISE,I.GENERATE,I.SETUP,I.PREVIEW_SOURCE,I.IMAGE,I.INPUT_MODE,
                    I.SOURCE_FRAME,I.NUM_GAUSSIANS,I.STEPS,I.SEED,I.ALPHA_EROSION):
             return self.job is None
         return True
@@ -549,7 +588,7 @@ class SplatObject(c4d.plugins.ObjectData):
         if doc is None or not is_open_document(doc):
             return
         key = op[I.MATERIAL]
-        if not force and key == self.material_key:
+        if not force and key is not None and key == self.material_key:
             return
         c4d.StopAllThreads()
         mat = op[I.MATERIAL]
@@ -564,25 +603,7 @@ class SplatObject(c4d.plugins.ObjectData):
         c4d.EventAdd()
 
     def initialise(self):
-        op = self.op
-        source = document_path(op,op[I.FILE])
-        if source and Path(source).is_file() and converter().needs_conversion(source):
-            if (not assets.cache_source_matches(source,op[I.CACHE_SOURCE])
-                    or not Path(document_path(op,op[I.CACHE_FILE])).is_file()):
-                self.start_conversion(source)
-                return
-        self.ensure_loaded(op,force=True)
-        if not self.cloud:
-            raise ValueError("Choose a Gaussian PLY, .splat or supported .spz file first.")
-        self.sync_material(force=True)
-        self.cache_key = self.prepare_key = None
-        degree = self.cloud.metadata.get("sh_degree",0)
-        op[I.STATUS] = "{:,} / {:,} splats loaded. SH degree {}. {}".format(
-            len(self.cloud.splats),self.cloud.total_count,degree,
-            "SH controls disabled: this file contains base colour only." if not degree else
-            "View-dependent colour uses Projection Camera (or active render camera).")
-        op.SetDirty(c4d.DIRTYFLAGS_DATA)
-        c4d.EventAdd()
+        self.start_scan(explicit=True)
 
     def start_conversion(self, source):
         require_idle()
@@ -681,6 +702,13 @@ class SplatObject(c4d.plugins.ObjectData):
         self.show_progress()
 
     def cancel(self, notify=True):
+        if self.job and self.job.get('kind') == 'scan':
+            self.cancel_scan(notify=notify)
+            if self.job['worker'].done.is_set():
+                self.release_scan()
+                if notify and self.op and is_open_document(self.op.GetDocument()):
+                    self.set_progress('Cancelled. Previous complete model preserved.', None)
+            return
         if not self.job:
             self.close_progress()
             return
@@ -691,6 +719,12 @@ class SplatObject(c4d.plugins.ObjectData):
                 creationflags=getattr(subprocess,"CREATE_NO_WINDOW",0),timeout=5,check=False)
             proc.wait(timeout=2)
         self.job["log"].close()
+        self.scan_state()
+        try:
+            self.blocked_request = self.request_snapshot()['key']
+        except (OSError, ReferenceError):
+            self.blocked_request = None
+        self.queued_request = None
         self.job = None
         JOBS.discard(self)
         self.close_progress()
@@ -704,10 +738,17 @@ class SplatObject(c4d.plugins.ObjectData):
             pass
 
     def poll(self):
+        self.scan_state()
+        if self.job and self.job.get('kind') == 'scan':
+            self.poll_scan()
+            return
         if self.error and self.error != self.reported_error:
             self.op[I.STATUS] = "Error: "+self.error
             self.reported_error = self.error
         if not self.job:
+            if self.queued_request and time.monotonic()-self.queued_at >= .30:
+                self.start_scan()
+                return
             if self.cloud:
                 self.sync_material()
             return
@@ -725,7 +766,8 @@ class SplatObject(c4d.plugins.ObjectData):
         job["log"].close()
         self.job = None
         JOBS.discard(self)
-        self.close_progress()
+        if job['kind'] != 'convert':
+            self.close_progress()
         # Completion is delivered by the timer while viewport evaluation may
         # still be running. Stop scene readers before applying new links/data.
         c4d.StopAllThreads()
@@ -733,9 +775,10 @@ class SplatObject(c4d.plugins.ObjectData):
             if code != 0 or not job["result"].is_file():
                 raise RuntimeError("Conversion failed. See "+str(job["dir"]/"conversion.log"))
             if source_signature(document_path(self.op,self.op[I.FILE])) != job["source_signature"]:
+                self.close_progress()
                 self.op[I.STATUS] = "Conversion completed for the previous source. Click Initialise for the current file."
                 return
-            converter().validate_converted(job["result"])
+            # The cancellable scan reader validates the conversion exactly once.
             self.op[I.CACHE_SOURCE] = job["source_signature"]
             self.op[I.CACHE_FILE] = str(job["result"])
             self.initialise()
@@ -786,7 +829,7 @@ class SplatObject(c4d.plugins.ObjectData):
 
 class Coordinator(c4d.plugins.MessageData):
     def GetTimer(self):
-        return 500
+        return 40
 
     def CoreMessage(self, message, bc):
         if message not in (c4d.MSG_TIMER,I.MESSAGE_ID,c4d.EVMSG_CHANGE):
@@ -843,10 +886,8 @@ class Coordinator(c4d.plugins.MessageData):
                     if folder.is_dir():
                         os.startfile(str(folder))
             except Exception as error:
-                if not instance.job:
-                    instance.close_progress()
                 try:
-                    instance.op[I.STATUS] = "Error: "+str(error)
+                    instance.report_failure(error)
                 except ReferenceError:
                     pass
                 print("Argentum Splat:",error)
@@ -856,18 +897,16 @@ class Coordinator(c4d.plugins.MessageData):
                     if instance.op and is_open_document(instance.op.GetDocument()):
                         instance.poll()
                     elif instance.job:
-                        instance.cancel()
+                        instance.cancel(notify=False)
                 except ReferenceError:
                     if instance.job:
                         try:
-                            instance.cancel()
+                            instance.cancel(notify=False)
                         except Exception as error:
                             print("Argentum Splat cancellation:",error)
                 except Exception as error:
-                    if not instance.job:
-                        instance.close_progress()
                     try:
-                        instance.op[I.STATUS] = "Error: "+str(error)
+                        instance.report_failure(error)
                     except ReferenceError:
                         pass
         return True

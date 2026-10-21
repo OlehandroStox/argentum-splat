@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.4.0 — 2026-10-21
+
+- Load SCAN data, evaluate colour and prepare geometry in a cancellable background worker. Conversion, reading and C4D assembly now have progress and elapsed time; Status remains in Attributes.
+- Build C4D cards and update their attributes in small UI-thread batches. Keep the previous complete model visible until its replacement is ready.
+- Cancel through the progress window, its close button or Cancel Processing. Failed/cancelled requests do not retry until the input/settings change or Initialise / Reload is clicked.
+- Read binary Gaussian PLY and SPLAT without allocating discarded records. Validate the complete source, preserve deterministic sampling, and eliminate the second full validation pass after conversion.
+- Reuse unchanged scans on Initialise / Reload. Separate camera-dependent SH colours from surface-card geometry and normal smoothing.
+- Route Source Fidelity's opacity reload and camera-facing rebuild through the same cancellable pipeline.
+- Debounce viewport changes for 0.3 seconds; discard obsolete work when parameters or camera change again. Offline render/export still evaluates the requested state synchronously.
+- Preserve point-preview limits, full Redshift geometry, file formats, material controls and existing object IDs.
+- Add regression coverage for cancellation, sampling parity, invalid records and camera/cache dependencies; 105 portable tests pass.
+
 ## 0.3.2 — 2026-10-21
 
 - Open the one-time Boosty donation form directly from the plugin and GitHub support links.

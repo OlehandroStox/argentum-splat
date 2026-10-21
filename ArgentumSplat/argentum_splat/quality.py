@@ -23,8 +23,6 @@ def apply_detail_preset(op):
         op[I.SUBSURFACE] = 0.0
         op[I.MIN_OPACITY] = min(float(op[I.MIN_OPACITY]), 1.0/255.0)
         instance = op.GetNodeData()
-        instance.invalidate()
-        instance.ensure_loaded(op)
         mat = op[I.MATERIAL]
         if mat:
             doc.AddUndo(c4d.UNDOTYPE_CHANGE, mat)
@@ -32,15 +30,17 @@ def apply_detail_preset(op):
                 "emission_weight": 1.0, "diffuse_weight": 0.0,
                 "subsurface_weight": 0.0,
             }, undo_mode=maxon.nodes.UNDO_MODE.ADD)
-        count = len(instance.cloud.splats) if instance.cloud else 0
         op[I.STATUS] = (
-            "Source Fidelity applied: {:,} splats, full camera covariance, "
+            "Source Fidelity applied. Preparing scan with full camera covariance, "
             "captured colour (Emission 1 / Diffuse 0). "
             "SH0 files contain fixed highlights, not dynamic glass reflections."
-        ).format(count)
+        )
         op.SetDirty(c4d.DIRTYFLAGS_DATA)
     finally:
         doc.EndUndo()
+    # The same cancellable pipeline handles opacity reloading and new cards.
+    # Preserve the old complete model until the replacement is ready.
+    instance.start_scan()
     c4d.EventAdd()
 
 

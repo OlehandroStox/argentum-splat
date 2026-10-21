@@ -50,9 +50,10 @@ Native Gaussian PLY, SPLAT and SPZ v2/v3 work without AI weights or the converte
 | Points in the viewport | Point Preview is enabled. It does not reduce Redshift output. Disable it to see cards in the editor. |
 | SH sliders disabled | The file has no SH1–SH3 coefficients. Single-image TripoSplat results are SH0. |
 | Video/sequence fails | Preview the selected frame. Frame index starts at 0; sequences use a filename offset. Missing frames, unsupported codecs and corrupt media report errors in Status. |
-| LOOK feels slow | Weight edits reuse geometry; colour edits still traverse all loaded splats. Redshift convergence takes additional time. Reduce Maximum Splats and reload for a lighter model. Preview Points only limits point drawing. |
+| SCAN load takes time | Version 0.4 shows progress for reading, preparation and C4D assembly. First import validates all input records, even with Maximum Splats set lower. Cancel keeps the last complete model. An unchanged reload reuses prepared data. |
+| LOOK / orbit feels slow | Keep Point Preview on and Preview Points around 10,000. Surface cards (Camera-Facing off) reuse geometry when the camera moves; SH colour updates after motion settles. Weight edits reuse geometry; colour edits still visit loaded splats in the background. Redshift convergence takes additional time. Maximum Splats reduces full model memory; Preview Points affects only drawing. |
 | Out of memory | Close other GPU workloads, lower Gaussian Count for generation or Maximum Splats for import, and allow memory for both AI and C4D/Redshift. |
-| Cancel does not interrupt immediately | It stops background tasks. Synchronous C4D geometry evaluation can temporarily occupy the main thread. |
+| Cancel does not interrupt immediately | Scan calculations check cancellation between blocks; C4D assembly yields between batches. A native allocation/commit already running must finish first. Final render/export has its own C4D/Redshift cancellation controls. |
 | Estimated source camera unavailable | Keep `generation.json` next to its PLY. Older generations without camera metadata cannot use this feature. |
 
 Logs: per-job `generation.log`; runtime `setup.log` / `formats.log`; conversion `conversion.log` beside its cache. Report the relevant error text, input format and application versions. Logs/metadata can contain local paths; remove personal details and do not upload private source media.

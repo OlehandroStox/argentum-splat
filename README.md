@@ -18,7 +18,7 @@
 
 Generate a static 3D Gaussian model from one image with **local TripoSplat inference**, or load an existing Gaussian scan. Adjust its appearance, render it with Redshift, and use Cinema 4D deformers and MoGraph.
 
-> **Preview release:** version 0.3.2 uses development plugin IDs `1000007–1000009`, not registered permanent Maxon IDs. They can conflict with another plugin using those IDs. Test in a separate C4D preferences folder before production use. [Details and compatibility](docs/installation.md#plugin-ids).
+> **Preview release:** version 0.4.0 uses development plugin IDs `1000007–1000009`, not registered permanent Maxon IDs. They can conflict with another plugin using those IDs. Test in a separate C4D preferences folder before production use. [Details and compatibility](docs/installation.md#plugin-ids).
 
 ## See the result
 
@@ -41,13 +41,13 @@ Generate a static 3D Gaussian model from one image with **local TripoSplat infer
 | **Colour & view dependence** | Gamma, contrast, hue, saturation, level; SH1–SH3 view-dependent colour when present in the scan. |
 | **Detail tools** | Source Fidelity preset, explicit Redshift quality setup, estimated source camera for new AI results. |
 | **Motion design** | Native deformable geometry and a MoGraph Fracture rig for per-splat effectors. |
-| **Responsive workflow** | Point preview, geometry reuse for LOOK edits, 0.1 slider increments, progress window with Cancel. |
+| **Responsive workflow** | Background SCAN loading, batched C4D assembly, cached LOOK/orbit updates, point preview and progress with Cancel. |
 
 Your media stays local. Initial setup downloads dependencies and model weights; subsequent inference runs offline. No paid API key or plugin subscription is required. Cinema 4D and Redshift are separate products.
 
 ## Install
 
-1. Download **`ArgentumSplat-0.3.2-C4D2027-Windows.zip`** from [Releases](https://github.com/OlehandroStox/argentum-splat/releases). Choose the named asset, not GitHub's automatic “Source code” archive.
+1. Download **`ArgentumSplat-0.4.0-C4D2027-Windows.zip`** from [Releases](https://github.com/OlehandroStox/argentum-splat/releases). Choose the named asset, not GitHub's automatic “Source code” archive.
 2. Extract the ZIP. Close Cinema 4D and run **`ArgentumSplat/Install.cmd`**. Or copy the whole `ArgentumSplat` folder into the `plugins` folder inside your C4D 2027 preferences directory.
 3. Start C4D → **Extensions → ArgentumSplat → Argentum Splat**.
 4. For image/video generation, click **Set Up AI / Extra Formats** once. Wait for **Status** to report completion.
