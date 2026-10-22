@@ -28,9 +28,22 @@ def describe(op, description, flags):
             container[c4d.DESC_NAME] = labels[key]
             container[c4d.DESC_SHORT_NAME] = labels[key]
             changed = True
+        if key == I.MAX_SPLATS:
+            container[c4d.DESC_MAX] = 3000000
+            changed = True
+        if key == I.PIXEL_VARIANCE:
+            container[c4d.DESC_STEP] = .025
+            changed = True
+        if key == I.COLOR_MODE:
+            cycle = c4d.BaseContainer()
+            cycle.SetString(0, 'sRGB Source to Scene Linear')
+            cycle.SetString(1, 'Treat Source as Linear')
+            container[c4d.DESC_CYCLE] = cycle
+            changed = True
         if changed:
             description.SetParameter(did, container, parent)
     controls = (
+        (I.PIXEL_VARIANCE, c4d.DTYPE_REAL, 2005, 'Pixel Footprint (variance; 0 = Off)', 2),
         (I.ALPHA_EROSION, c4d.DTYPE_LONG, 2000, 'Alpha Erosion (0 = Keep Fine Edges)', 8),
         (I.DETAIL_PRESET, c4d.DTYPE_BUTTON, 2001, 'Source Fidelity - Preserve Detail', 0),
         (I.PREPARE_REDSHIFT, c4d.DTYPE_BUTTON, 2001, 'Set Redshift Detail Quality', 0),
@@ -47,10 +60,10 @@ def describe(op, description, flags):
         container = c4d.GetCustomDataTypeDefault(datatype)
         container[c4d.DESC_NAME] = container[c4d.DESC_SHORT_NAME] = label
         container[c4d.DESC_ANIMATE] = c4d.DESC_ANIMATE_OFF
-        if datatype == c4d.DTYPE_LONG:
+        if datatype in (c4d.DTYPE_LONG, c4d.DTYPE_REAL):
             container[c4d.DESC_MIN] = 0
             container[c4d.DESC_MAX] = maximum
-            container[c4d.DESC_STEP] = 1
+            container[c4d.DESC_STEP] = .025 if key == I.PIXEL_VARIANCE else .1 if datatype == c4d.DTYPE_REAL else 1
             container[c4d.DESC_DEFAULT] = 0
         else:
             container[c4d.DESC_CUSTOMGUI] = c4d.CUSTOMGUI_BUTTON

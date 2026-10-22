@@ -1,5 +1,36 @@
 # Validation scope
 
+## 0.6.0 cache and scan detail
+
+**187 portable tests pass on Python 3.10 and 3.12.** New cases cover quiet camera updates, coalescing while a camera job is running, canonical inactive-SH keys, render clones with evicted global cache entries, compact binary PLY sampling/storage, float64 geometry buffers, perspective covariance projection under nonuniform object transforms, camera-matrix round-off, informational camera-override warnings, and manual quality settings that preserve stricter values. Finite-difference projection tests also cover lens, camera and output-resolution changes.
+
+Single-run CPU colour comparisons, 262,144 splats, Python 3.10, without NumPy:
+
+| Colour pass | Before | 0.6.0 |
+| --- | ---: | ---: |
+| SH0, neutral correction | 2.102 s | 0.723 s |
+| SH3 | 5.742 s | 3.432 s |
+
+Maximum RGB error against the scalar reference was 1.89e-15. These measurements exclude C4D attribute writes and Redshift convergence. Run `python tests/test_color_performance.py --benchmark` to reproduce the fixture.
+
+A separate-process 20,000-record SH3 PLY test retaining 4,000 records reduced the tracked sampling-stage peak from 11.81 MB to 3.85 MB and the overall peak from 11.81 MB to 10.11 MB. Time with tracemalloc enabled was 0.707 s before and 0.573 s after. The final selected-cloud hash matched exactly. These small-fixture measurements are not peak process memory estimates for a million-splat C4D scene.
+
+In Cinema 4D 2027.0.0, automatic SH-camera updates kept the processing dialog closed and reused the loaded cloud and spatial arrays. Camera motion during a job did not cancel it; the settled result matched the latest camera key. Light-only edits did not queue preparation. A matching render clone reused cloud, spatial and colour arrays. The main 0.6.0 changes also loaded after a cold application start; subsequent round-off, camera-warning and quality-preset fixes were checked with refreshed callbacks.
+
+For 50,000 retained SH3 records in separate processes with tracemalloc, compact cloud storage used 14.45 MB instead of 121.26 MB (88% less); peak after geometry and colour preparation was 50.63 MB instead of 157.41 MB. Repeated transient decoding adds CPU cost to subsequent passes. A separate 50,000-splat projected-geometry/colour fixture reduced prepared-array storage from 34.54 MiB to 5.96 MiB (82.8%), taking 2.037 s instead of 1.992 s. These are component measurements, not total C4D RAM guarantees. The outputs match the list-based calculations.
+
+The native large-scan check loaded 2,309,943 eligible splats from a 2,370,630-record SOG with the 3,000,000 cap: all opacity-eligible records, without reservoir sampling. The already-converted PLY took 45.51 s to read/decode, 137.68 s for perspective geometry, 69.66 s for SH3 colour, and 367.67 s overall including C4D assembly. The longest recorded assembly slice was 0.681 s. Before compact cloud/buffers, a smaller 1,000,000 retained sample in the same long-running application took 676.40 s overall (353.43 s reading/decoding). This is a single comparison with different retained counts and memory pressure, not a controlled universal speedup ratio. Large source-fidelity scenes still need substantial preparation time.
+
+A 1,000,000-splat Redshift preview completed. The first full 2,309,943-splat render did not complete: Cinema 4D closed with Windows exception 0xC00000FD at an address inside nvcuda64.dll while another view was being prepared. This records a host stack-growth failure, not a proven GPU-memory or driver root cause. The test inherited a maximum of 8,192 samples and enabled GI. After restoring the saved scene and running sequentially, a full-source 768 × 460 Redshift render completed in 235.25 s with result 0 and a written file. Cloud, geometry, colour arrays and mesh template were reused, with no preparation job queued. Later fixed-snapshot float renders also completed. These successful runs do not establish the cause of the earlier crash or universal host stability.
+
+The new perspective pixel filter remains an approximation on flat cards. The source-fidelity preset retains at most 3,000,000 splats; larger scans remain sampled. No pixel-identical match with a dedicated Gaussian viewer is claimed. Native colour management, ray ordering and the renderer's alpha kernel also affect the result.
+
+A subsequent full-source **1536 × 920** Redshift float render completed in **48.58 s** with manual 16/128 samples, transparency depth 128 and Pixel Footprint 0.075. The display image was exported through the snapshot's native OCIO rendering-to-display transform. The camera/framing and resolution differ from the earlier 235.25-second run, so these timings are not a speedup comparison. Twelve native camera matrix round-trips/evaluations reused source, spatial arrays, colours and mesh template without queueing preparation. A real view change on this 2.31-million-splat scene still required about 325 s including geometry, SH and native assembly; quiet updates do not mean instantaneous full-source camera-facing preparation.
+
+The fidelity check found an explicit projection-camera override differing from the render camera, and an oversized pixel footprint caused by confusing actual-pixel and doubled-projection coordinates. The preset now uses 0.075 actual pixel squared. Fine features are improved, but differences in translucent colour and layer compositing remain visible. SOG data does not include the website's complete camera/post-effect/render configuration.
+
+An isolated OSL diagnostic using the same shader entry name for a different program invalidated Redshift's emission kernel. A distinct versioned entry name restored rendering; the release migrates only the exact unmodified legacy emission source. Custom shader text is preserved. Subsequent native rendering used the release shader. This diagnostic is not evidence that every black render has the same cause.
+
 ## 0.5.1 license update
 
 112 portable tests passed. The two edited setup scripts parse successfully. License texts were checked against pinned upstream sources; release contents were inspected for runtime/model binaries. No geometry/rendering behavior changed; native rendering was not rerun for this documentation/notice update.

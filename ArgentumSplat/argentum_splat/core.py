@@ -12,6 +12,7 @@ layout follows antimatter15/splat/convert.py, without copying its implementation
 """
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass, field, replace
 import math
 from pathlib import Path
@@ -27,7 +28,7 @@ MAX_RECORDS = 100_000_000
 MAX_LIST_LENGTH = 1_000_000
 MAX_HEADER_BYTES = 1_048_576
 MAX_LINE_BYTES = 1_048_576
-MAX_RETAINED = 1_000_000
+MAX_RETAINED = 3_000_000
 
 # struct code, integral lower bound, integral upper bound.
 _TYPES = {
@@ -61,9 +62,48 @@ class Splat:
 
 @dataclass
 class SplatCloud:
-    splats: list[Splat]
+    splats: Sequence[Splat]
     total_count: int
     metadata: dict = field(default_factory=dict)
+
+
+@dataclass(frozen=True, slots=True, eq=False)
+class _PackedSplats(Sequence):
+    """An immutable in-memory snapshot, expanding only the requested record.
+
+    Each access returns the same ordinary frozen Splat value as the list-based
+    reader. Bytes preserve source precision without retaining millions of Python
+    float/tuple graphs. Slices share immutable record bytes; iteration is local
+    to its caller and does not cache decoded objects or depend on an open file.
+    """
+    _records: tuple[bytes, ...] = field(repr=False)
+    _decode: object = field(repr=False)
+    _space: str
+
+    def __len__(self):
+        return len(self._records)
+
+    def _value(self, record):
+        splat = self._decode(record)
+        return replace(splat, color=source_to_linear(splat.raw_color, self._space),
+                       input_color_space=self._space)
+
+    def __getitem__(self, index):
+        record = self._records[index]
+        if isinstance(index, slice):
+            return _PackedSplats(record, self._decode, self._space)
+        return self._value(record)
+
+    def __iter__(self):
+        for record in self._records:
+            yield self._value(record)
+
+    def __eq__(self, other):
+        if self is other:
+            return True
+        if not isinstance(other, Sequence):
+            return NotImplemented
+        return len(self) == len(other) and all(a == b for a, b in zip(self, other))
 
 
 @dataclass
@@ -146,7 +186,7 @@ def _scales(logs, context):
 
 class _Sampler:
     """Deterministic Algorithm R reservoir over all opacity-eligible records."""
-    def __init__(self, limit, min_opacity, progress=None):
+    def __init__(self, limit, min_opacity, progress=None, *, compact=False):
         self.limit = limit
         self.min_opacity = min_opacity
         self.items = []
@@ -155,6 +195,7 @@ class _Sampler:
         self.minimum = [math.inf] * 3
         self.maximum = [-math.inf] * 3
         self.progress = progress
+        self.compact = compact
 
     def choose(self, index, position, opacity):
         """Reserve a reservoir slot before allocating attributes for a record."""
@@ -181,7 +222,9 @@ class _Sampler:
         if self.progress is not None:
             self.progress(stage, done, total)
 
-    def finish(self, total, metadata, space, decode=None):
+    def finish(self, total, metadata, space, decode=None, *, compact=False):
+        if compact and decode is None:
+            raise ValueError("Compact Gaussian storage requires a record decoder.")
         metadata.update({
             "eligible_count": self.eligible,
             "filtered_count": total - self.eligible,
@@ -191,16 +234,40 @@ class _Sampler:
             "input_color_space": space,
             "bounds": (tuple(self.minimum), tuple(self.maximum)) if total else None,
         })
-        items = sorted(self.items, key=lambda pair: pair[0])
+        # Transfer ownership and consume the reservoir while decoding. Keeping
+        # the original reservoir alive doubles its references and, for generic
+        # readers, retains the old colour/Splat objects until the pass ends.
+        items, self.items = self.items, []
+        items.sort(key=lambda pair: pair[0])
         splats = []
+        records = [] if compact else None
+        effective_degree = 0
+        declared_degree = metadata.get('sh_degree', 0)
         for i, (_, splat) in enumerate(items):
             if i % 2048 == 0:
                 self.report('Decode colour', i, len(items))
+            items[i] = None
+            if compact:
+                records.append(splat)
             if decode is not None:
                 splat = decode(splat)
-            splats.append(replace(splat, color=source_to_linear(splat.raw_color, space),
-                                 input_color_space=space))
+            if effective_degree < declared_degree and splat.sh:
+                size = len(splat.sh) // 3
+                for band in range(declared_degree, effective_degree, -1):
+                    start, end = ((0, 3), (3, 8), (8, 15))[band - 1]
+                    if any(splat.sh[channel * size + j] != 0.
+                           for channel in range(3) for j in range(start, end)):
+                        effective_degree = band
+                        break
+            # Validate transfer conversion now, even when the record will only
+            # be expanded on demand later. A compact load is not lazy validation.
+            color = source_to_linear(splat.raw_color, space)
+            if not compact:
+                splats.append(replace(splat, color=color, input_color_space=space))
         self.report('Decode colour', len(items), len(items))
+        metadata['effective_sh_degree'] = effective_degree
+        if compact:
+            splats = _PackedSplats(tuple(records), decode, space)
         return SplatCloud(splats, total, metadata)
 
 
@@ -424,10 +491,12 @@ def _make_vertex(values, index, gaussian, props, rest_count, point_radius):
 
 
 def _load_binary_gaussians(stream, vertex, endian, sampler, rest_count):
-    """Validate every scalar, but only materialise retained Gaussian records.
+    """Validate every scalar, retaining compact records until sampling finishes.
 
     The same reservoir and validation rules apply to the generic reader. Large
-    SH scans avoid millions of temporary dictionaries and coefficient tuples.
+    SH scans avoid materialising coefficient tuples for reservoir entries which
+    will later be replaced. Store the original bytes, including double precision
+    and arbitrary property order, then decode each final selected record once.
     """
     names = [p.name for p in vertex.properties]
     codec = struct.Struct(endian + ''.join(_TYPES[p.value_type][0] for p in vertex.properties))
@@ -447,7 +516,7 @@ def _load_binary_gaussians(stream, vertex, endian, sampler, rest_count):
             context = 'PLY vertex %d' % index
             _finite(values, context)
             position = tuple(values[k] for k in xyz)
-            scales = _scales((values[k] for k in scales_ix), context)
+            _scales((values[k] for k in scales_ix), context)
             rotation = tuple(values[k] for k in rotation_ix)
             if not any(rotation):
                 raise SplatFormatError(context + ': zero quaternion.')
@@ -457,10 +526,20 @@ def _load_binary_gaussians(stream, vertex, endian, sampler, rest_count):
                 continue
             raw = tuple(.5 + SH_C0 * values[k] for k in dc)
             _finite(raw, context)
-            splat = Splat(position, raw, opacity, scales, _quaternion(rotation, context),
-                          tuple(values[k] for k in rest_ix), raw, 'linear')
-            sampler.items[slot] = (index, splat)
+            byte_offset = offset * codec.size
+            sampler.items[slot] = (index, block[byte_offset:byte_offset + codec.size])
     sampler.report('Read PLY', vertex.count, vertex.count)
+
+    def decode(record):
+        values = codec.unpack(record)
+        raw = tuple(.5 + SH_C0 * values[k] for k in dc)
+        return Splat(tuple(values[k] for k in xyz), raw,
+                     _sigmoid(values[opacity_ix]),
+                     _scales((values[k] for k in scales_ix), 'PLY vertex'),
+                     _quaternion(tuple(values[k] for k in rotation_ix), 'PLY vertex'),
+                     tuple(values[k] for k in rest_ix), raw, 'linear')
+
+    return decode
 
 
 def _load_ply(stream, sampler, requested_space, point_radius):
@@ -479,9 +558,10 @@ def _load_ply(stream, sampler, requested_space, point_radius):
         if match:
             declared_spaces.append(_space(match.group(1)))
     supplements = {}
+    decode = None
     for element in elements:
         if element.name == 'vertex' and gaussian and fmt != 'ascii':
-            _load_binary_gaussians(stream, element,
+            decode = _load_binary_gaussians(stream, element,
                 '<' if fmt == 'binary_little_endian' else '>', sampler, rest_count)
             continue
         records = (_ascii_records(stream, element) if fmt == "ascii" else
@@ -528,7 +608,8 @@ def _load_ply(stream, sampler, requested_space, point_radius):
     }
     if not gaussian:
         metadata["point_radius"] = point_radius
-    return sampler.finish(vertex.count, metadata, space)
+    return sampler.finish(vertex.count, metadata, space, decode=decode,
+                          compact=sampler.compact and decode is not None)
 
 
 def _load_splat(stream, sampler, requested_space):
@@ -577,7 +658,8 @@ def _load_splat(stream, sampler, requested_space):
 
 
 def load(path, max_splats=60000, min_opacity=0.02, *, point_radius=0.01,
-         color_space="auto", unconverted_coordinates=False, progress=None):
+         color_space="auto", unconverted_coordinates=False, progress=None,
+         compact=False):
     """Read and validate every source record, retaining a bounded random sample.
 
     Sampling is deterministic and covers the entire file after opacity filtering.
@@ -587,12 +669,18 @@ def load(path, max_splats=60000, min_opacity=0.02, *, point_radius=0.01,
     standard deviation ``point_radius``. Unlabelled files assume sRGB; callers
     may select ``color_space='linear'`` to override that assumption.
     ``unconverted_coordinates`` applies only to SPZ and preserves its raw frame.
+    ``compact=True`` keeps binary Gaussian PLY records in an immutable packed
+    sequence with len/index/slice/iteration support. Values and validation are
+    unchanged; each access creates a transient Splat instead of caching it.
+    The default and other formats retain the existing list representation.
     """
     if isinstance(max_splats, bool) or not isinstance(max_splats, int) or not 1 <= max_splats <= MAX_RETAINED:
         raise ValueError(f"max_splats must be an integer from 1 to {MAX_RETAINED:,}.")
     if (isinstance(min_opacity, bool) or not isinstance(min_opacity, (int, float))
             or not math.isfinite(min_opacity) or not 0 <= min_opacity <= 1):
         raise ValueError("min_opacity must be finite and between 0 and 1.")
+    if not isinstance(compact, bool):
+        raise ValueError("compact must be a boolean.")
     requested_space = _space(color_space)
     path = Path(path)
     suffix = path.suffix.lower()
@@ -601,7 +689,7 @@ def load(path, max_splats=60000, min_opacity=0.02, *, point_radius=0.01,
         return load_spz(path, max_splats=max_splats, min_opacity=min_opacity,
                         unconverted_coordinates=unconverted_coordinates,
                         color_space=requested_space, progress=progress)
-    sampler = _Sampler(max_splats, min_opacity, progress)
+    sampler = _Sampler(max_splats, min_opacity, progress, compact=compact)
     with path.open("rb") as stream:
         if suffix == ".ply":
             cloud = _load_ply(stream, sampler, requested_space, point_radius)

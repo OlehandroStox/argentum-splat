@@ -1,4 +1,5 @@
 """Cancellable data preparation. Worker code has no Cinema 4D dependency."""
+import math
 import threading
 import time
 from . import core, geometry
@@ -8,15 +9,60 @@ class Cancelled(Exception):
     pass
 
 
+def view_key(value):
+    """Ignore host matrix round-trip noise in cache keys, not in calculations.
+
+    Twelve significant digits retain real camera/lens changes. Vectors share
+    a scale so near-zero components tolerate the same round-off as their axes;
+    tiny inverse object-scale bases remain nonzero. User controls and source
+    identifiers do not pass through this function.
+    """
+    if isinstance(value, (tuple, list)):
+        if value and all(isinstance(v, (int, float)) and math.isfinite(v) for v in value):
+            magnitude = max(abs(v) for v in value)
+            digits = 11 - math.floor(math.log10(magnitude)) if magnitude else 12
+            return tuple(round(v, digits) for v in value)
+        return tuple(view_key(v) for v in value)
+    if isinstance(value, float) and math.isfinite(value):
+        return float(format(value, '.12g'))
+    return value
+
+
 def preparation_keys(source_key, values, camera, has_sh, color_config):
-    spatial_camera = camera if values['camera_facing'] else (0., 0., -500.)
+    stable_camera = view_key(camera)
+    spatial_camera = stable_camera if values['camera_facing'] else (0., 0., -500.)
+    projection = values.get('projection')
+    if values['camera_facing'] and projection and values.get('pixel_variance', 0.) > 0.:
+        spatial_camera = (stable_camera, values['pixel_variance'],
+                          tuple(sorted((key, view_key(value)) for key, value in projection.items())))
     spatial = (source_key, tuple(values[k] for k in
         ('scale', 'splat_scale', 'flip_y', 'camera_facing', 'smoothing')), spatial_camera)
-    color_camera = camera if has_sh and values['sh_degree'] and values['sh_strength'] else None
-    color = (source_key, tuple(values[k] for k in
-        ('scale', 'flip_y', 'sh_degree', 'sh_strength', 'gamma', 'contrast',
-         'hue', 'saturation', 'level', 'highlight', 'color_mode')), color_camera, color_config)
+    degree = effective_degree(values, has_sh)
+    color_camera = stable_camera if degree else None
+    view_values = (values['scale'], values['flip_y'], degree, values['sh_strength']) if degree else (None, None, 0, 0.)
+    color = (source_key, view_values + tuple(values[k] for k in
+        ('gamma', 'contrast', 'hue', 'saturation', 'level', 'highlight', 'color_mode')), color_camera, color_config)
     return spatial, color
+
+
+def effective_degree(values, available):
+    """Unknown (True) is conservative; an integer is the stored SH degree."""
+    maximum = 3 if available is True else int(available or 0)
+    return min(values['sh_degree'], maximum) if values['sh_strength'] else 0
+
+
+def non_view_key(request):
+    """Changes to the camera alone must not throw away in-flight file reads."""
+    spatial, color = request['spatial_key'], request['color_key']
+    # Pixel filtering is a user control, although its value lives beside the
+    # camera projection in the spatial key. Preserve it during cancellation
+    # comparisons; ignore it when the projection path is inactive. Deriving it
+    # from the prepared key also supports requests without a values dictionary.
+    view = spatial[2]
+    pixel_variance = (view[1] if isinstance(view, tuple) and len(view) == 3
+                      and isinstance(view[0], tuple) and isinstance(view[2], tuple) else 0.)
+    return (spatial[:2], pixel_variance, color[:2] + color[3:], request['opacity'],
+            request['weights'], request['material'])
 
 
 class Preparation:
@@ -65,7 +111,7 @@ class Preparation:
             if cloud is None:
                 cloud = core.load(request['path'], max_splats=request['max_splats'],
                     min_opacity=request['min_opacity'], unconverted_coordinates=request['raw_spz'],
-                    progress=self.progress)
+                    progress=self.progress, compact=request['max_splats'] > 262144)
                 if request.get('converted_spz'):
                     from dataclasses import replace
                     from .spz import _RUB_RDF_SH_SIGNS
@@ -110,6 +156,9 @@ class Preparation:
             self.result = dict(cloud=cloud, spatial=spatial, colors=colors, bounds=bounds,
                                colors_are_working=self.colors is not None)
         except BaseException as error:
-            self.error = error
+            # Traceback frames can retain the entire partially loaded reservoir
+            # in a cycle after cancellation. Keep the error, not gigabytes of
+            # abandoned records waiting for a later main-thread GC collection.
+            self.error = error.with_traceback(None)
         finally:
             self.done.set()

@@ -37,7 +37,7 @@ class InteractiveScan:
         source_key = self.source_key(op)
         values = plugin.settings(op)
         same_source = source_key == self.load_key and self.cloud is not None
-        has_sh = bool(self.cloud.metadata.get('sh_degree', 0)) if same_source else True
+        has_sh = self.cloud.metadata.get('effective_sh_degree', self.cloud.metadata.get('sh_degree', 0)) if same_source else True
         camera = plugin.projection_camera(op) if (values['camera_facing'] or
             (has_sh and values['sh_degree'] and values['sh_strength'])) else (0.,0.,-500.)
         color_config = plugin.color_configuration_key(op.GetDocument())
@@ -142,11 +142,13 @@ class InteractiveScan:
                                          self.bounds if spatial is not None else None)
             self.job = dict(kind='scan', worker=worker, request=request, dir=Path(path).parent,
                             started=time.perf_counter(), builder=None, last_progress=0.,
-                            cancel_reason=None, max_slice_seconds=0.)
+                            cancel_reason=None, max_slice_seconds=0.,
+                            foreground=explicit or self.mesh_template is None or key != self.load_key)
             self.queued_request = None
             plugin.JOBS.add(self)
             self.set_progress('Reading scan' if cloud is None else 'Updating scan', 0.)
-            self.show_progress()
+            if self.job['foreground']:
+                self.show_progress()
             worker.start()
         except Exception:
             self.blocked_request = request['key']
@@ -197,7 +199,8 @@ class InteractiveScan:
             current = self.request_snapshot()
         except (OSError, ValueError):
             current = None
-        if not job['cancel_reason'] and (current is None or current['key'] != job['request']['key']):
+        if not job['cancel_reason'] and (current is None or
+                loading.non_view_key(current) != loading.non_view_key(job['request'])):
             self.cancel_scan(notify=False, superseded=True)
             if current is not None:
                 self.queued_request = current
@@ -250,7 +253,7 @@ class InteractiveScan:
         request, data = job['request'], job['worker'].result
         cloud, spatial, colors = data['cloud'], data['spatial'], data['colors']
         if not data['colors_are_working']:
-            working = []
+            working = plugin.geometry.Vec3Buffer() if request['values'].get('compact_buffers') else []
             count = len(colors)
             for start in range(0, count, 4096):
                 working.extend(plugin.working_colors(self.op.GetDocument(), colors[start:start+4096]))
@@ -290,7 +293,15 @@ class InteractiveScan:
         c4d.StopAllThreads()
         self.cloud, self.load_key = data['cloud'], job['request']['source_key']
         self.spatial, self.colors, self.bounds = data['spatial'], data['colors'], data['bounds']
-        request = self.request_snapshot()
+        # Label results with the camera that was actually calculated, not the
+        # camera that happens to be current when this asynchronous job finishes.
+        request = dict(job['request'])
+        degree = self.cloud.metadata.get('effective_sh_degree', self.cloud.metadata.get('sh_degree', 0))
+        request['spatial_key'], request['color_key'] = loading.preparation_keys(
+            self.load_key, request['values'], request['camera'], degree,
+            request['color_key'][3])
+        request['key'] = (request['spatial_key'], request['color_key'],
+                          request['opacity'], request['weights'], request['material'])
         self.spatial_key, self.color_key = request['spatial_key'], request['color_key']
         self.prepared = self.spatial+(self.colors,)
         self.prepare_key = (self.spatial_key,self.color_key)
@@ -309,10 +320,19 @@ class InteractiveScan:
             max_ui_slice_seconds=job['max_slice_seconds'],
             retained=len(self.cloud.splats), total=self.cloud.total_count)
         self.release_scan()
+        current = self.request_snapshot()
+        if current['key'] != self.ready_request:
+            self.queued_request = current
+            self.queued_at = time.monotonic()
         self.op.SetDirty(c4d.DIRTYFLAGS_DATA)
-        self.set_progress('Ready: {:,} / {:,} splats · {:.1f}s · SH {}'.format(
-            len(self.cloud.splats),self.cloud.total_count,self.last_scan_metrics['total_seconds'],
-            self.cloud.metadata.get('sh_degree',0)), 1.)
+        retained, total = len(self.cloud.splats), self.cloud.total_count
+        eligible = self.cloud.metadata.get('eligible_count', total)
+        detail = (' · Sampled source' if retained < eligible else
+                  ' · Opacity-filtered only' if retained < total else ' · Full source')
+        self.set_progress('Ready: {:,} / {:,} splats ({:.1f}%) · {:.1f}s · SH {}{}'.format(
+            retained, total, 100.*retained/max(1,total), self.last_scan_metrics['total_seconds'],
+            self.cloud.metadata.get('sh_degree',0),
+            detail), 1.)
 
 
 def plugin_document_open(op):

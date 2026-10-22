@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.6.0 — Quiet updates and scan detail
+
+- Camera-only movement no longer cancels/restarts the source read or opens the processing dialog. Automatic LOOK/view updates run quietly after a settling interval; initial loads and explicit reloads keep progress and Cancel.
+- Finish an in-flight camera request, publish it under its actual camera, then coalesce to the latest camera. The previous complete model remains available throughout.
+- Tolerate camera-matrix round-trip noise in view cache keys, including render document copies; actual geometry and colour calculations retain full precision. Real camera, lens and output changes still invalidate the cache.
+- Canonical SH keys avoid colour work for SH0, zero strength, zero-padded SH and equivalent requested degrees. Geometry and colour are reused independently by render document copies.
+- Render copies reuse loaded scans even after global-cache eviction. Native binary Gaussian PLY loads retain packed source records when Maximum Splats exceeds 262,144; cancellation drops traceback references to abandoned allocations.
+- Native preparation uses compact float64 buffers for positions, axes, normals and colours. Separate fixtures measured about 88% less retained Python source-cloud memory and 82.8% less retained prepared-buffer memory; these are component savings, not a promise for the whole Cinema 4D process.
+- Batch colour correction skips neutral HSV work; measured 262,144-splat passes are about 2.9x faster for SH0 and 1.7x for SH3 on the tested machine, without NumPy.
+- Add optional perspective screen-space covariance filtering (`Pixel Footprint`); preserve the prior card path at zero.
+- Raise the Maximum Splats cap to 3,000,000. Source Fidelity enables that limit, SH3 / SH Strength 1, emission-only captured colour, opacity threshold at most 1/255, no normal smoothing, and 0.075 pixel-squared filtering. Status shows the retained/source percentage.
+- Correct the source-fidelity footprint for actual pixel coordinates, avoiding oversized tiny bright splats. Pixel Footprint increments by 0.025; other LOOK sliders keep their 0.1 steps.
+- Explain projection/render-camera mismatches in Status without changing explicit camera links. Rename the colour mode to sRGB Source to Scene Linear; correct decoding does not imply identical renderer compositing.
+- Redshift Detail Quality disables Automatic Sampling and applies an adaptive error threshold of at most 0.01 so its manual sample floors take effect. Stricter existing values are preserved.
+- Version the emission shader entry name when upgrading the exact legacy source; preserve manually edited shader code.
+- The tested Raspberry scan has approximately 2.37 million source splats; all 2,309,943 passing the 1/255 opacity threshold fit under the new cap (97.4% of the source, no reservoir sampling). The remainder is opacity-filtered. Scans with more than 3 million eligible splats still use a deterministic sample.
+- 187 portable tests pass on Python 3.10 and 3.12. Redshift cards remain an approximation and cannot promise pixel-identical native Gaussian output.
+
+
 ## 0.5.1 — License notices and distribution scope
 
 - Preserve the TripoSplat-Training camera-reference and tqdm notices.

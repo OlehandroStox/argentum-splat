@@ -63,7 +63,7 @@ GAUSSIAN_SOURCE = """shader ArgentumGaussian(
 }
 """
 
-EMISSION_SOURCE = """shader ArgentumEmissionColor(
+LEGACY_EMISSION_SOURCE = """shader ArgentumEmissionColor(
     color SplatColor = color(1.0),
     float EmissionWeight = 1.0,
     output color WeightedColor = color(1.0)
@@ -72,6 +72,12 @@ EMISSION_SOURCE = """shader ArgentumEmissionColor(
     WeightedColor = SplatColor * max(0.0, EmissionWeight);
 }
 """
+
+# Keep distinct generated kernel names when migrating shader implementations.
+# Reusing an entry name for a different OSL program can invalidate Redshift's
+# compiled shader cache even when the graph reports a successful compilation.
+EMISSION_SOURCE = LEGACY_EMISSION_SOURCE.replace(
+    'shader ArgentumEmissionColor(', 'shader ArgentumEmissionColor060(')
 
 DEFAULTS = {
     "emission_weight": 0.64,
@@ -189,7 +195,13 @@ def _weight_maps(graph, surface, values):
 
 def _ensure_emission_node(graph, undo_mode=None):
     """Compile the color multiplier before connecting its dynamic ports."""
-    if not _root(graph).FindChild("as_emission_color").IsNullValue():
+    existing = _root(graph).FindChild("as_emission_color")
+    if not existing.IsNullValue():
+        source = _input(existing, OSL + "internal.sourcecode")
+        if str(source.GetPortValue()).strip() == LEGACY_EMISSION_SOURCE.strip():
+            with _begin_transaction(graph, undo_mode) as transaction:
+                source.SetPortValue(EMISSION_SOURCE)
+                transaction.Commit()
         return
     with _begin_transaction(graph, undo_mode) as transaction:
         node = graph.AddChild(maxon.Id("as_emission_color"), maxon.Id(OSL.rstrip(".")))

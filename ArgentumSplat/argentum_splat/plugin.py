@@ -1,5 +1,6 @@
 """Cinema 4D integration. Heavy AI work runs in an isolated subprocess."""
 import json
+import math
 import os
 from pathlib import Path
 import subprocess
@@ -8,7 +9,7 @@ import uuid
 import weakref
 from dataclasses import replace
 import c4d
-from . import core, geometry, materials, assets, input_source, job_progress, ids as I
+from . import core, geometry, materials, assets, input_source, job_progress, loading, ids as I
 from .scene_jobs import InteractiveScan
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -49,7 +50,7 @@ def require_idle():
 
 def settings(op):
     spz_normal = str(op[I.FILE] or "").lower().endswith(".spz") and not op[I.SPZ_RAW]
-    return {
+    values = {
         "scale": float(op[I.SCALE]), "splat_scale": float(op[I.SPLAT_SCALE]),
         "flip_y": bool(op[I.FLIP_Y]) ^ spz_normal, "camera_facing": bool(op[I.CAMERA_FACING]),
         "smoothing": int(op[I.SMOOTHING]), "sh_degree": int(op[I.SH_DEGREE]),
@@ -59,7 +60,12 @@ def settings(op):
         "highlight": float(op[I.HIGHLIGHT]), "color_mode": int(op[I.COLOR_MODE]),
         "emission_weight": float(op[I.EMISSION]),
         "diffuse_weight": float(op[I.DIFFUSE]), "subsurface_weight": float(op[I.SUBSURFACE]),
+        "pixel_variance": float(op[I.PIXEL_VARIANCE] or 0.),
+        "compact_buffers": True,
     }
+    if values['camera_facing'] and values['pixel_variance'] > 0.:
+        values['projection'] = screen_projection(op)
+    return values
 
 
 def vector_tuple(v):
@@ -92,11 +98,14 @@ def working_colors(doc, colors):
     color_converter = doc.GetColorConverter()
     if not color_converter.IsOcioConverter():
         raise RuntimeError("Cinema 4D could not initialize the document OCIO converter.")
-    result = color_converter.TransformColors(
-        [c4d.Vector(*rgb) for rgb in colors],
-        c4d.COLORSPACETRANSFORMATION_OCIO_LINEAR_TO_RENDERING,
-    )
-    return [vector_tuple(rgb) for rgb in result]
+    working = geometry.Vec3Buffer() if isinstance(colors, geometry.Vec3Buffer) else []
+    for start in range(0, len(colors), 4096):
+        result = color_converter.TransformColors(
+            [c4d.Vector(*rgb) for rgb in colors[start:start+4096]],
+            c4d.COLORSPACETRANSFORMATION_OCIO_LINEAR_TO_RENDERING,
+        )
+        working.extend(vector_tuple(rgb) for rgb in result)
+    return working
 
 
 def source_signature(path):
@@ -144,6 +153,25 @@ def projection_camera(op):
             cam = bd.GetSceneCamera(doc) or bd.GetEditorCamera()
     position = cam.GetMg().off if cam else c4d.Vector(0, 0, -500)
     return vector_tuple(~op.GetMg() * position)
+
+
+def screen_projection(op):
+    """Camera axes retain inverse object scale so projection supports affine objects."""
+    doc = op.GetDocument()
+    if doc is None:
+        return None
+    bd = doc.GetRenderBaseDraw()
+    cam = op[I.CAMERA] or (bd.GetSceneCamera(doc) or bd.GetEditorCamera() if bd else None)
+    if cam is None or cam[c4d.CAMERA_PROJECTION] != c4d.Pperspective:
+        # Other C4D projections keep the existing covariance-card path.
+        return None
+    rd = doc.GetActiveRenderData()
+    width, height = max(1., float(rd[c4d.RDATA_XRES])), max(1., float(rd[c4d.RDATA_YRES]))
+    focal = width / (2. * math.tan(float(cam[c4d.CAMERAOBJECT_FOV]) * .5))
+    inv, mg = ~op.GetMg(), cam.GetMg()
+    return dict(right=vector_tuple(inv.MulV(mg.v1)), up=vector_tuple(inv.MulV(mg.v2)),
+                forward=vector_tuple(inv.MulV(mg.v3)), focal_x=focal,
+                focal_y=focal * float(rd[c4d.RDATA_PIXELASPECT] or 1.), width=width, height=height)
 
 
 def complete_steps(steps):
@@ -369,10 +397,19 @@ class SplatObject(InteractiveScan, c4d.plugins.ObjectData):
         key = self.source_key(op)
         if force or key != self.load_key:
             cloud = None if force else CLOUD_CACHE.get(key)
+            if cloud is None and not force:
+                # A scene may contain more scans than the small global cache.
+                # Their live generators still own the validated source arrays;
+                # render clones should reuse those rather than parse them again.
+                for other in list(INSTANCES):
+                    if other is not self and getattr(other, 'load_key', None) == key:
+                        cloud = getattr(other, 'cloud', None)
+                        if cloud is not None:
+                            break
             if cloud is None:
                 cloud = core.load(path, max_splats=int(op[I.MAX_SPLATS]),
                     min_opacity=float(op[I.MIN_OPACITY]),
-                    unconverted_coordinates=bool(op[I.SPZ_RAW]))
+                    unconverted_coordinates=bool(op[I.SPZ_RAW]), compact=int(op[I.MAX_SPLATS]) > 262144)
                 if is_converted and original_path.lower().endswith(".spz") and not op[I.SPZ_RAW]:
                     cloud = convert_spz_cloud_frame(cloud)
                 # A small shared read-only cache prevents repeat disk parsing in render clones.
@@ -393,19 +430,26 @@ class SplatObject(InteractiveScan, c4d.plugins.ObjectData):
         cloud = self.ensure_loaded(op)
         if cloud is None:
             return None
-        camera_dependent = bool(op[I.CAMERA_FACING] or
-                                (op[I.SH_DEGREE] and op[I.SH_STRENGTH] and cloud.metadata.get("sh_degree",0)))
-        camera = projection_camera(op) if camera_dependent else (0.,0.,-500.)
         values = settings(op)
+        degree = cloud.metadata.get('effective_sh_degree', cloud.metadata.get('sh_degree', 0))
+        camera_dependent = values['camera_facing'] or loading.effective_degree(values, degree)
+        camera = projection_camera(op) if camera_dependent else (0.,0.,-500.)
         doc = op.GetDocument()
         spatial_camera = camera if op[I.CAMERA_FACING] else (0.,0.,-500.)
-        spatial_key = (self.load_key, tuple(values[k] for k in (
-            "scale", "splat_scale", "flip_y", "camera_facing", "smoothing")), spatial_camera)
-        color_camera = camera if op[I.SH_DEGREE] and op[I.SH_STRENGTH] and cloud.metadata.get("sh_degree", 0) else None
-        color_key = (self.load_key, tuple(values[k] for k in (
-            "scale", "flip_y", "sh_degree", "sh_strength", "gamma", "contrast",
-            "hue", "saturation", "level", "highlight", "color_mode")),
-            color_camera, color_configuration_key(doc))
+        spatial_key, color_key = loading.preparation_keys(
+            self.load_key, values, camera, degree, color_configuration_key(doc))
+        # Render document copies are new NodeData instances. Reuse immutable
+        # prepared arrays from a matching live instance instead of redoing all
+        # geometry/SH work each time Redshift starts a new render document.
+        for other in list(INSTANCES):
+            if other is self or getattr(other, 'load_key', None) != self.load_key:
+                continue
+            if other.spatial_key == spatial_key and other.spatial is not None:
+                self.spatial, self.bounds, self.spatial_key = other.spatial, other.bounds, spatial_key
+            if other.color_key == color_key and other.colors is not None:
+                self.colors, self.color_key = other.colors, color_key
+            if self.spatial_key == spatial_key and self.color_key == color_key:
+                break
         if spatial_key != getattr(self, "spatial_key", None):
             self.spatial = geometry.prepare_geometry(cloud, values, spatial_camera)
             self.spatial_key = spatial_key
@@ -453,6 +497,15 @@ class SplatObject(InteractiveScan, c4d.plugins.ObjectData):
                 return cached
             previous = self.cache_key
             old_mesh = cache_mesh(cached)
+            if previous is None or previous[0] != key[0] or old_mesh is None:
+                for owner in [self] + [x for x in list(INSTANCES) if x is not self]:
+                    ready = getattr(owner, 'ready_request', None)
+                    template = getattr(owner, 'mesh_template', None)
+                    if ready and template is not None and ready[0] == key[0]:
+                        old_mesh = template
+                        previous = (ready[0], ready[1], False, ready[2], ready[4], ready[3])
+                        if ready[1] == key[1]:
+                            break
             if (previous is not None and len(previous) == 6 and previous[0] == key[0]
                     and old_mesh is not None):
                 # Native cloning copies the arrays in bulk. Only the changed
@@ -528,11 +581,17 @@ class SplatObject(InteractiveScan, c4d.plugins.ObjectData):
         if color_key != self.last_color_key:
             self.last_color_key = color_key
             op.SetDirty(c4d.DIRTYFLAGS_DATA)
-        camera = projection_camera(op)
+        degree = (self.cloud.metadata.get('effective_sh_degree', self.cloud.metadata.get('sh_degree', 0))
+                  if self.cloud else 0)
+        camera_dependent = bool(op[I.CAMERA_FACING] or (op[I.SH_DEGREE] and op[I.SH_STRENGTH] and degree))
+        camera = projection_camera(op) if camera_dependent else None
+        if camera_dependent and op[I.PIXEL_VARIANCE]:
+            projection = screen_projection(op)
+            camera = (camera, tuple(sorted(projection.items())) if projection else None)
+        camera = loading.view_key(camera)
         if camera != self.last_camera:
             self.last_camera = camera
-            if op[I.CAMERA_FACING] or (op[I.SH_DEGREE] and self.cloud
-                                      and self.cloud.metadata.get("sh_degree",0)):
+            if camera_dependent:
                 op.SetDirty(c4d.DIRTYFLAGS_DATA)
         return c4d.EXECUTIONRESULT_OK
 
@@ -569,8 +628,31 @@ class SplatObject(InteractiveScan, c4d.plugins.ObjectData):
     def set_progress(self, message, amount=None):
         self.progress_message = str(message)
         self.progress_amount = amount
-        self.op[I.STATUS] = str(message)
+        self.refresh_status(force=True)
         c4d.EventAdd()
+
+    def refresh_status(self, force=False):
+        """Explain an intentional camera override without changing it or rebuilding."""
+        op = self.op
+        if op is None:
+            return
+        warning = ('\nProjection Camera differs from the render camera. '
+                   'Clear Projection Camera to follow the render camera.')
+        message = str(self.progress_message if force else op[I.STATUS] or '')
+        if message.endswith(warning):
+            message = message[:-len(warning)]
+        if not message:
+            return
+        doc = op.GetDocument()
+        override = op[I.CAMERA]
+        if doc and override and (op[I.CAMERA_FACING] or
+                                (op[I.SH_DEGREE] and op[I.SH_STRENGTH])):
+            bd = doc.GetRenderBaseDraw()
+            current = (bd.GetSceneCamera(doc) or bd.GetEditorCamera()) if bd else None
+            if current and current != override:
+                message += warning
+        if op[I.STATUS] != message:
+            op[I.STATUS] = message
 
     def show_progress(self):
         from .progress_ui import show
@@ -749,7 +831,7 @@ class SplatObject(InteractiveScan, c4d.plugins.ObjectData):
             self.op[I.STATUS] = "Error: "+self.error
             self.reported_error = self.error
         if not self.job:
-            if self.queued_request and time.monotonic()-self.queued_at >= .30:
+            if self.queued_request and time.monotonic()-self.queued_at >= .60:
                 self.start_scan()
                 return
             if self.cloud:
@@ -907,6 +989,7 @@ class Coordinator(c4d.plugins.MessageData):
                 try:
                     if instance.op and is_open_document(instance.op.GetDocument()):
                         instance.poll()
+                        instance.refresh_status()
                     elif instance.job:
                         instance.cancel(notify=False)
                 except ReferenceError:

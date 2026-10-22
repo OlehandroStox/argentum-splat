@@ -16,6 +16,14 @@ def apply_detail_preset(op):
     try:
         doc.AddUndo(c4d.UNDOTYPE_CHANGE, op)
         op[I.CAMERA_FACING] = True
+        # Our Jacobian uses actual pixels (width / (2*tan(fov/2))).
+        # A viewer using width/tan(fov/2) and a 0.3 covariance ridge therefore
+        # corresponds to 0.3/4 = 0.075 here, not 0.3 real pixel squared.
+        op[I.PIXEL_VARIANCE] = .075
+        op[I.SH_DEGREE] = 3
+        op[I.SH_STRENGTH] = 1.0
+        op[I.SMOOTHING] = 0  # Captured unlit colour does not need smoothed normals.
+        op[I.MAX_SPLATS] = max(int(op[I.MAX_SPLATS]), 3000000)
         # Follow the current render camera, including camera switches.
         op[I.CAMERA] = None
         op[I.EMISSION] = 1.0
@@ -31,8 +39,8 @@ def apply_detail_preset(op):
                 "subsurface_weight": 0.0,
             }, undo_mode=maxon.nodes.UNDO_MODE.ADD)
         op[I.STATUS] = (
-            "Source Fidelity applied. Preparing scan with full camera covariance, "
-            "captured colour (Emission 1 / Diffuse 0). "
+            "Source Fidelity: up to 3,000,000 splats, full SH, perspective pixel filtering, "
+            "captured colour (Emission 1 / Diffuse 0). Larger scans remain sampled. "
             "SH0 files contain fixed highlights, not dynamic glass reflections."
         )
         op.SetDirty(c4d.DIRTYFLAGS_DATA)
@@ -76,9 +84,18 @@ def prepare_redshift(op):
         ):
             key = getattr(c4d, name)
             vp[key] = max(int(vp[key] or 0), minimum)
+        # Manual sample floors have no effect while Automatic Sampling is on.
+        vp[c4d.REDSHIFT_RENDERER_ENABLE_AUTOMATIC_SAMPLING] = False
+        for name in ('REDSHIFT_RENDERER_UNIFIED_ADAPTIVE_ERROR_THRESHOLD',
+                     'REDSHIFT_RENDERER_BASIC_UNIFIED_ADAPTIVE_ERROR_THRESHOLD'):
+            key = getattr(c4d, name, None)
+            if key is not None:
+                current = float(.01 if vp[key] is None else vp[key])
+                vp[key] = min(current, .01)
         op[I.STATUS] = (
             "Redshift detail settings: transparency depth >= 128; "
-            "samples >= 16 / 128. Existing higher settings are preserved. "
+            "manual samples >= 16 / 128; threshold <= 0.01. "
+            "Existing stricter settings are preserved. "
             "Rendering can take longer."
         )
     finally:
