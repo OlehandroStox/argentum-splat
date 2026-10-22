@@ -4,6 +4,16 @@
 
 Labels match the plugin's English interface. Decimal LOOK controls increment by **0.1**; type a value for finer precision. Minimum Opacity increments by **0.001**. Existing values and animation keys are not rounded.
 
+## New-object defaults (0.6.1)
+
+New objects start with **Source Fidelity**: Maximum Splats **3,000,000**, Minimum Opacity **1/255 ≈ 0.00392157**, Camera-Facing Cards **on**, Pixel Footprint **0.075**, SH degree **3**, SH Strength **1**, Normal Smoothing **0**. LOOK starts with **sRGB Source to Scene Linear**, Highlight Limit **3**, Emission **1**, Diffuse **0**, Subsurface **0**. Global Scale **100**, Splat Scale **1** and Opacity Multiplier **1** remain unchanged.
+
+The previous 262,144 import cap could discard most of a detailed scan; the 0.02 opacity threshold could remove faint details. Diffuse 1 added scene lighting to captured colours. The new defaults retain more source information without requiring the preset after every import. Attribute Manager's Reset to Default uses the same values.
+
+**Existing and duplicated objects keep their saved values.** Apply Source Fidelity explicitly to an older object. It preserves colour correction, scale, axis conversion and a lower opacity threshold. The preset does not reset a deliberately chosen Colour Management mode.
+
+Large imports and camera-facing updates need more time and RAM than a reduced scan. Point Preview stays on at **10,000 points**; it only reduces editor drawing. For draft work, lower Maximum Splats or turn Camera-Facing Cards off, accepting reduced detail or projection accuracy. Restore Source Fidelity for final work. Gaussian Count controls AI generation separately; the 3-million import limit does not create extra Gaussians.
+
 ## Input
 
 | Control | Meaning / when to use it |
@@ -41,7 +51,7 @@ Scan reading/calculation runs in a worker; C4D geometry is assembled in short UI
 | Set Redshift Detail Quality | Raise transparency depth to at least 128, Unified Min Samples to 16 and Max Samples to 128. Disables Automatic Sampling so these floors take effect; sets adaptive thresholds to at most 0.01. Keeps stricter existing settings. Changes the current document only on explicit use; Undo supported. Can increase render time. |
 | Create Estimated Source Camera | Create an editable camera from new AI metadata in adjacent `generation.json`. It is an estimate for square `prepared.png`, not calibrated photo reconstruction. Does not replace the active camera. |
 
-The detail preset retains more of the information already in a model and can use more time and memory than the default 262,144 limit. SH3 evaluates only coefficients actually present in the file; it does not add SH to an SH0 model. The preset does not modify the source file or the document's display transform. Use **Set Redshift Detail Quality** separately to change render depth and sampling.
+The detail preset matches the new-object quality profile and can use more time and memory than an intentionally reduced import limit. SH3 evaluates only coefficients actually present in the file; it does not add SH to an SH0 model. The preset does not modify the source file or the document's display transform. Use **Set Redshift Detail Quality** separately to change render depth and sampling.
 
 **Status** reports retained / source splat counts and their percentage. The limit is now **3,000,000**; scans exceeding it after opacity filtering still use a deterministic sample. The tested `Raspberry.sog` contains approximately 2.37 million splats: at Minimum Opacity 1/255, 2,309,943 pass the filter (97.4% of the source). The 3-million limit retains all of those eligible splats without reservoir sampling; the remainder is removed by the opacity threshold. The preset cannot synthesize missing hair, hidden geometry or reflections. Polygon-card compositing, transparency and colour management differ from a native Gaussian renderer, so identical appearance is not guaranteed.
 
@@ -90,10 +100,10 @@ The C4D plugin keeps binary Gaussian PLY source records packed when **Maximum Sp
 | Control | Meaning |
 | --- | --- |
 | Global Scale | Scale the whole model. |
-| Pixel Footprint (variance; 0 = Off) | Image-space filtering for perspective Camera-Facing Cards. Default 0 preserves the previous card path; 0.075 preserves a small footprint for thin details. Range 0–2, step 0.025. Higher values broaden the projected splats and can soften detail. |
+| Pixel Footprint (variance; 0 = Off) | Image-space filtering for perspective Camera-Facing Cards. Default 0.075 preserves a small footprint for thin details; 0 disables filtering. Range 0–2, step 0.025. Higher values broaden the projected splats and can soften detail. |
 | Splat Scale | Change card sizes without moving their centres. Oversizing can blur details; undersizing can create holes. |
-| Maximum Splats | Retain up to this many opacity-eligible splats; above the limit, take a deterministic uniform sample across the input file. Default 262,144; maximum 3,000,000. Loading/filter changes queue a new load after changes settle; Initialise / Reload starts it immediately. |
-| Minimum Opacity | Discard nearly transparent splats on load. Lower values retain fine details but may increase memory/render work. |
+| Maximum Splats | Retain up to this many opacity-eligible splats; above the limit, take a deterministic uniform sample across the input file. Default and maximum 3,000,000; this retains existing splats rather than generating new ones. Loading/filter changes queue a new load after changes settle; Initialise / Reload starts it immediately. |
+| Minimum Opacity | Discard nearly transparent splats on load. Default 1/255 (about 0.00392157). Lower values retain fine details but may increase memory/render work. |
 | Opacity Multiplier | Scale the opacity of retained splats. |
 | Flip Y Axis | Reflect Y along with the Gaussian covariance. AI results enable this to stand upright in C4D. |
 | Redshift Material | Editable node-material link. |

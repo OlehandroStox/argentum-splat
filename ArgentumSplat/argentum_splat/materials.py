@@ -24,6 +24,7 @@ import math
 
 import c4d
 import maxon
+from . import ids as I
 
 
 NODE_SPACE = maxon.Id("com.redshift3d.redshift4c4d.class.nodespace")
@@ -80,9 +81,9 @@ EMISSION_SOURCE = LEGACY_EMISSION_SOURCE.replace(
     'shader ArgentumEmissionColor(', 'shader ArgentumEmissionColor060(')
 
 DEFAULTS = {
-    "emission_weight": 0.64,
-    "diffuse_weight": 1.0,
-    "subsurface_weight": 0.0,
+    "emission_weight": I.DEFAULTS[I.EMISSION],
+    "diffuse_weight": I.DEFAULTS[I.DIFFUSE],
+    "subsurface_weight": I.DEFAULTS[I.SUBSURFACE],
 }
 
 

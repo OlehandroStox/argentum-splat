@@ -1,4 +1,4 @@
-ARGENTUM SPLAT 0.6.0 — Cinema 4D 2027 / Windows / Redshift
+ARGENTUM SPLAT 0.6.1 — Cinema 4D 2027 / Windows / Redshift
 
 Бесплатная предварительная версия с открытым исходным кодом.
 Проект: https://github.com/OlehandroStox/argentum-splat
@@ -38,8 +38,9 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\Install.ps1 -ImportOnly
 Не устанавливайте несколько копий в разные пути поиска плагинов C4D.
 
 Input File → фото → 65,536 Gaussians / 20 steps / Alpha Erosion 0 →
-Load / Generate from Input. После завершения: Source Fidelity — Preserve
-Detail, камера на объект, затем запустить IPR в RS Render View.
+Load / Generate from Input. Новые объекты уже используют Source Fidelity:
+камера на объект, затем запустить IPR в RS Render View. Для старых объектов
+пресет применяется кнопкой Source Fidelity — Preserve Detail по желанию.
 Set Redshift Detail Quality повышает глубину прозрачности и сэмплинг,
 но может увеличить время рендера. Status показывает ошибки.
 
@@ -53,8 +54,9 @@ Cards off исключает перестройку геометрии при с
 LOOK обновляются после остановки изменений без всплывающего окна; ход работы
 остаётся в Status, отмена доступна через Cancel Processing. Свет не вызывает
 пересчёт скана. Рендер использует модель с учётом Maximum Splats.
-Source Fidelity сохраняет до 3 000 000 splats и включает перспективную
-фильтрацию. Для больших сканов подготовка и обновление ракурса всё ещё требуют
+Новые объекты сохраняют до 3 000 000 splats при пороге прозрачности 1/255:
+Emission 1, Diffuse 0, Subsurface 0, SH3, Camera-Facing Cards on, Pixel
+Footprint 0.075, Normal Smoothing 0. Старые значения в сценах сохраняются. Для больших сканов подготовка и обновление ракурса всё ещё требуют
 времени и памяти. Point Preview не уменьшает количество splats в рендере.
 
 Видео и секвенции: один выбранный кадр → одна статическая модель.

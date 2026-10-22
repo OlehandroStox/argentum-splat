@@ -1,5 +1,13 @@
 # Validation scope
 
+## 0.6.1 default fidelity
+
+**192 portable tests pass on Python 3.10 and 3.12.** The new import regression retains all 262,145 records of a binary PLY with alpha 0.01: more than the previous import cap, and below the previous opacity threshold. Other new checks cover clone preservation, the explicit preset retaining artistic values and a lower opacity threshold, and new-material fallback weights without overriding explicit older weights.
+
+Native Cinema 4D **2027.0.0 / Python 3.11.4** checks confirmed all new-object parameters and Attribute Manager default metadata. Cloning preserved custom parameters and camera/material links. A saved custom-value fixture was reopened and retained its values and remapped links. A new-object fixture loaded 25 Gaussian cards and completed a **320 × 320 Redshift render** with result 0 in **0.781 s**; its OCIO display-transformed output was inspected and contained the coloured Gaussian pattern. This small render checks integration, not large-scan performance or visual parity with another renderer.
+
+The user's already-loaded Strawberry (1,499,098 splats) and Raspberry (2,309,943 splats) retained their parameters and the exact same source, spatial, colour and mesh-template objects through the update. No scan job was queued and the active document stayed unchanged. The updated modules were refreshed in the running application; a full restart was not repeated for this patch. The source-fidelity settings had already been exercised on the larger scans in 0.6.0. Higher default retention does not make large imports or real camera-facing view changes instantaneous.
+
 ## 0.6.0 cache and scan detail
 
 **187 portable tests pass on Python 3.10 and 3.12.** New cases cover quiet camera updates, coalescing while a camera job is running, canonical inactive-SH keys, render clones with evicted global cache entries, compact binary PLY sampling/storage, float64 geometry buffers, perspective covariance projection under nonuniform object transforms, camera-matrix round-off, informational camera-override warnings, and manual quality settings that preserve stricter values. Finite-difference projection tests also cover lens, camera and output-resolution changes.

@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.6.1 — Source fidelity for every new object
+
+- New objects start at the full 3,000,000 import cap and a 1/255 opacity threshold instead of 262,144 and 0.02. Dense scans no longer require a manual detail-preset step to avoid aggressive initial sampling.
+- Default to Emission 1 / Diffuse 0 / Subsurface 0, full available SH, camera-facing covariance, Pixel Footprint 0.075 and zero normal-smoothing passes. sRGB decoding and neutral colour correction remain the starting colour pipeline.
+- Share one quality profile between object creation and the explicit Source Fidelity action; new-material fallback weights agree with it. Attribute Manager reset defaults also agree with object creation.
+- Preserve saved and cloned object values, material links and artistic settings. Existing objects adopt the profile only when Source Fidelity is explicitly applied. Render settings remain an explicit separate action.
+- Keep the 10,000-point editor preview and the independent AI Gaussian Count choices. Larger retained scans need more memory/preparation time; camera-facing mode still recalculates geometry for real view changes.
+- Add regression coverage for a 262,145-record faint scan, clone preservation, preset compatibility and material fallback weights.
+
+
 ## 0.6.0 — Quiet updates and scan detail
 
 - Camera-only movement no longer cancels/restarts the source read or opens the processing dialog. Automatic LOOK/view updates run quietly after a settling interval; initial loads and explicit reloads keep progress and Cancel.

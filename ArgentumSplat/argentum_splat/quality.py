@@ -15,28 +15,21 @@ def apply_detail_preset(op):
     doc.StartUndo()
     try:
         doc.AddUndo(c4d.UNDOTYPE_CHANGE, op)
-        op[I.CAMERA_FACING] = True
-        # Our Jacobian uses actual pixels (width / (2*tan(fov/2))).
-        # A viewer using width/tan(fov/2) and a 0.3 covariance ridge therefore
-        # corresponds to 0.3/4 = 0.075 here, not 0.3 real pixel squared.
-        op[I.PIXEL_VARIANCE] = .075
-        op[I.SH_DEGREE] = 3
-        op[I.SH_STRENGTH] = 1.0
-        op[I.SMOOTHING] = 0  # Captured unlit colour does not need smoothed normals.
-        op[I.MAX_SPLATS] = max(int(op[I.MAX_SPLATS]), 3000000)
+        for key, value in I.SOURCE_FIDELITY.items():
+            if key == I.MAX_SPLATS:
+                value = max(int(op[key]), value)
+            elif key == I.MIN_OPACITY:
+                value = min(float(op[key]), value)
+            op[key] = value
         # Follow the current render camera, including camera switches.
         op[I.CAMERA] = None
-        op[I.EMISSION] = 1.0
-        op[I.DIFFUSE] = 0.0
-        op[I.SUBSURFACE] = 0.0
-        op[I.MIN_OPACITY] = min(float(op[I.MIN_OPACITY]), 1.0/255.0)
         instance = op.GetNodeData()
         mat = op[I.MATERIAL]
         if mat:
             doc.AddUndo(c4d.UNDOTYPE_CHANGE, mat)
             materials.update_material(mat, {
-                "emission_weight": 1.0, "diffuse_weight": 0.0,
-                "subsurface_weight": 0.0,
+                "emission_weight": op[I.EMISSION], "diffuse_weight": op[I.DIFFUSE],
+                "subsurface_weight": op[I.SUBSURFACE],
             }, undo_mode=maxon.nodes.UNDO_MODE.ADD)
         op[I.STATUS] = (
             "Source Fidelity: up to 3,000,000 splats, full SH, perspective pixel filtering, "

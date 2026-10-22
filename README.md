@@ -3,7 +3,7 @@
 <h1 align="center">Argentum Splat</h1>
 <p align="center"><strong>Images to 3D Gaussian splats. Inside Cinema 4D.</strong><br>Free, open-source integration for Cinema 4D 2027 and Redshift on Windows.</p>
 <p align="center">
-  <a href="https://github.com/OlehandroStox/argentum-splat/releases/download/v0.6.0/ArgentumSplat-0.6.0-C4D2027-Windows.zip">Download 0.6.0</a> ·
+  <a href="https://github.com/OlehandroStox/argentum-splat/releases/download/v0.6.1/ArgentumSplat-0.6.1-C4D2027-Windows.zip">Download 0.6.1</a> ·
   <a href="#install">Install</a> ·
   <a href="docs/controls.md">Controls</a> ·
   <a href="README.ru.md">Русский</a> ·
@@ -18,12 +18,13 @@
 
 Generate a static 3D Gaussian model from one image with **local TripoSplat inference**, or load an existing Gaussian scan. Adjust its appearance, render it with Redshift, and use Cinema 4D deformers and MoGraph.
 
-> **Preview release:** version 0.6.0 uses development plugin IDs `1000007–1000009`, not registered permanent Maxon IDs. They can conflict with another plugin using those IDs. Test in a separate C4D preferences folder before production use. [Details and compatibility](docs/installation.md#plugin-ids).
+> **Preview release:** version 0.6.1 uses development plugin IDs `1000007–1000009`, not registered permanent Maxon IDs. They can conflict with another plugin using those IDs. Test in a separate C4D preferences folder before production use. [Details and compatibility](docs/installation.md#plugin-ids).
 
-## Current release: 0.6.0
+## Current release: 0.6.1
 
-**[Download the Windows ZIP](https://github.com/OlehandroStox/argentum-splat/releases/download/v0.6.0/ArgentumSplat-0.6.0-C4D2027-Windows.zip)** · [Release notes](https://github.com/OlehandroStox/argentum-splat/releases/tag/v0.6.0)
+**[Download the Windows ZIP](https://github.com/OlehandroStox/argentum-splat/releases/download/v0.6.1/ArgentumSplat-0.6.1-C4D2027-Windows.zip)** · [Release notes](https://github.com/OlehandroStox/argentum-splat/releases/tag/v0.6.1)
 
+- **Quality by default:** new objects retain up to 3 million splats at a 1/255 opacity threshold, with captured-colour lighting, full available SH and perspective filtering. Existing scene values stay intact.
 - **Quiet updates:** camera and LOOK changes reuse loaded data and update in the background; initial loads and explicit reloads retain progress and Cancel.
 - **Source Fidelity:** full available SH, up to 3 million splats, unlit captured colour and perspective pixel filtering for thin details. This remains a Redshift card approximation.
 - **Lower Python memory:** binary Gaussian PLY records stay packed when Maximum Splats exceeds 262,144; native plugin preparation uses compact float64 geometry and colour buffers.
@@ -32,7 +33,7 @@ Generate a static 3D Gaussian model from one image with **local TripoSplat infer
 - **Less repeated work:** LOOK weight edits reuse geometry. With Camera-Facing Cards off, camera movement reuses spatial data and updates SH colours as needed; moving lights does not reload the source file.
 - **Checked for motion design:** native Fracture + Plain Effector and Bend were tested across 13 frames, alongside camera/light changes and Redshift previews.
 
-Validated with **187 portable tests on Python 3.10 and 3.12**, plus native cache/update checks in Cinema 4D 2027. Separate fixtures measured about **88% less retained Python source-cloud memory** and **82.8% less retained prepared-buffer memory**; these are not whole-process RAM savings or real-time guarantees. Earlier installation checks include real image-to-3D generation in a fresh Python 3.12 environment. Large scans still take time to load; Camera-Facing Cards intentionally rebuild orientation. See the [validation scope](docs/validation.md) for test conditions and limits.
+Validated with **192 portable tests on Python 3.10 and 3.12**, plus native cache/update checks in Cinema 4D 2027. Separate fixtures measured about **88% less retained Python source-cloud memory** and **82.8% less retained prepared-buffer memory**; these are not whole-process RAM savings or real-time guarantees. Earlier installation checks include real image-to-3D generation in a fresh Python 3.12 environment. Large scans still take time to load; Camera-Facing Cards intentionally rebuild orientation. See the [validation scope](docs/validation.md) for test conditions and limits.
 
 For the tested **`Raspberry.sog`** (approximately 2.37 million splats), the 3-million limit keeps all **2,309,943** splats passing the 1/255 opacity threshold: **97.4% of the source**, without additional reservoir sampling. The remaining splats are opacity-filtered. Larger files can still be sampled, and the Redshift card result is not guaranteed to match a native Gaussian renderer exactly.
 
@@ -63,7 +64,7 @@ Your media stays local. Initial setup downloads dependencies and model weights; 
 
 ## Install
 
-1. Download **[ArgentumSplat-0.6.0-C4D2027-Windows.zip](https://github.com/OlehandroStox/argentum-splat/releases/download/v0.6.0/ArgentumSplat-0.6.0-C4D2027-Windows.zip)**. This is the installer package; GitHub's automatic “Source code” archive is intended for development.
+1. Download **[ArgentumSplat-0.6.1-C4D2027-Windows.zip](https://github.com/OlehandroStox/argentum-splat/releases/download/v0.6.1/ArgentumSplat-0.6.1-C4D2027-Windows.zip)**. This is the installer package; GitHub's automatic “Source code” archive is intended for development.
 2. Extract the ZIP, close Cinema 4D and run **`ArgentumSplat/Install.cmd`**. It installs the plugin, extra-format converter, private Python runtime and AI dependencies automatically. If several C4D preferences folders exist, choose the one you use.
 3. Wait for the setup summary, then start C4D → **Extensions → ArgentumSplat → Argentum Splat**.
 
@@ -80,7 +81,7 @@ After the initial runtime download:
 1. Select an image in **Input File**. Start with one clear, fully visible object.
 2. Use **65,536 Gaussians**, **20 steps**, **Alpha Erosion = 0** for a first test.
 3. Click **Load / Generate from Input**. The progress window shows the current stage; **Cancel** stops background work.
-4. When loading finishes, click **Source Fidelity – Preserve Detail** to preserve the source colours. Frame the object with your render camera.
+4. New objects already use **Source Fidelity** settings. Frame the object with your render camera. For an older object, **Source Fidelity – Preserve Detail** applies the quality preset explicitly.
 5. Start rendering in **RS Render View**. If overlapping splats look incomplete, use **Set Redshift Detail Quality**; it raises transparency depth and sampling and can increase render time.
 
 Generation time depends on the GPU, image and settings. The house example used 65,536 Gaussians, 20 steps, seed 42 and about 45 seconds of AI processing on an RTX 4070; loading and rendering take additional time.

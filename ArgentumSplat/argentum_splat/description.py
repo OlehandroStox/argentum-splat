@@ -21,6 +21,11 @@ def describe(op, description, flags):
             continue
         key = did[0].id
         changed = False
+        if key in I.DEFAULTS:
+            # Attribute Manager's Reset to Default must match object creation.
+            # Description metadata does not assign values to saved objects.
+            container[c4d.DESC_DEFAULT] = I.DEFAULTS[key]
+            changed = True
         if key in FINE_PARAMETERS or key == I.MIN_OPACITY:
             container[c4d.DESC_STEP] = .001 if key == I.MIN_OPACITY else .1
             changed = True
@@ -64,7 +69,7 @@ def describe(op, description, flags):
             container[c4d.DESC_MIN] = 0
             container[c4d.DESC_MAX] = maximum
             container[c4d.DESC_STEP] = .025 if key == I.PIXEL_VARIANCE else .1 if datatype == c4d.DTYPE_REAL else 1
-            container[c4d.DESC_DEFAULT] = 0
+            container[c4d.DESC_DEFAULT] = I.DEFAULTS.get(key, 0)
         else:
             container[c4d.DESC_CUSTOMGUI] = c4d.CUSTOMGUI_BUTTON
         if key == I.INPUT_MODE:
