@@ -1,4 +1,4 @@
-ARGENTUM SPLAT 0.6.1 — Cinema 4D 2027 / Windows / Redshift
+ARGENTUM SPLAT 0.6.2 — Cinema 4D 2027 / Windows / Redshift
 
 Бесплатная предварительная версия с открытым исходным кодом.
 Проект: https://github.com/OlehandroStox/argentum-splat
@@ -41,6 +41,8 @@ Input File → фото → 65,536 Gaussians / 20 steps / Alpha Erosion 0 →
 Load / Generate from Input. Новые объекты уже используют Source Fidelity:
 камера на объект, затем запустить IPR в RS Render View. Для старых объектов
 пресет применяется кнопкой Source Fidelity — Preserve Detail по желанию.
+Auto Prepare Redshift on Import один раз подготавливает Redshift для нового
+файла. Можно отключить; последующие ручные настройки не сбрасываются.
 Set Redshift Detail Quality повышает глубину прозрачности и сэмплинг,
 но может увеличить время рендера. Status показывает ошибки.
 

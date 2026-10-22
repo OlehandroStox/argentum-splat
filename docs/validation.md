@@ -1,5 +1,19 @@
 # Validation scope
 
+## 0.6.2 large-scene projection
+
+**199 portable tests pass on Python 3.10 and 3.12.** New checks cover eye-plane singularities, behind-camera collapse, bounded projected support, image-edge overlap, source-index preservation, camera invalidation with Pixel Footprint 0, and once-per-source Redshift preparation. Render-setting floors and the saved source marker share one undo operation; stricter values remain intact.
+
+Native Cinema 4D **2027.0.0 / Python 3.11.4 / RTX 4070 12 GB** loaded all **2,999,952** records of the Iowa Capital Building SOG, with no reservoir sampling or opacity rejection. Its previous image had long horizon streaks and a coarse, blob-like facade. On a deterministic 20,134-record sample at the user's camera, the old projection produced a card half-axis of approximately **278,192 cm** near the camera plane. The bounded projection removes this singular behavior and collapses behind-camera cards instead of substituting tilted geometry.
+
+At the same user camera, the corrected full-source **1091 × 1280** Redshift float render finished with **result 0 in 82.95 seconds**. Its native **ACEScg → ACES 2.0 SDR-video / sRGB** display image was inspected: facade/roof/vegetation details were substantially clearer, and the long horizon streaks were absent. Transparency depth was raised from **16 to 128**, with manual **16/128** samples and adaptive threshold **0.01**. This checks the combined correction; it is not a pixel-identical comparison against the website, which uses a different camera and display transform. Distant source detail and card-compositing differences remain.
+
+With the already-parsed source reused, geometry preparation took **156.97 s**, SH3 colour **92.87 s**, and the full update including C4D assembly **400.51 s**. The longest recorded assembly slice was **0.991 s**. These are single-run measurements, not a real-time navigation claim or a controlled speedup ratio. Camera-facing updates on a 3-million-splat scene still take substantial time.
+
+Twelve equivalent native matrix round-trips and an unchanged explicit reload retained the exact source, spatial, colour and mesh-template objects without starting a new job. A later manual transparency-depth edit was preserved by the automatic preparation hook. An isolated save/reopen test preserved both the source marker and the user's disabled auto-prepare checkbox. Updated callbacks were refreshed in the running application; a cold restart was not repeated for this patch. No new MoGraph animation benchmark was run. Camera-facing culling is specific to the projection camera; use surface-aligned cards for secondary views or movement across frame boundaries.
+
+Test source: [Iowa Capital Building by weitzvdc](https://superspl.at/scene/131f8717), listed under CC BY 4.0. The scan is not bundled with the plugin.
+
 ## 0.6.1 default fidelity
 
 **192 portable tests pass on Python 3.10 and 3.12.** The new import regression retains all 262,145 records of a binary PLY with alpha 0.01: more than the previous import cap, and below the previous opacity threshold. Other new checks cover clone preservation, the explicit preset retaining artistic values and a lower opacity threshold, and new-material fallback weights without overriding explicit older weights.

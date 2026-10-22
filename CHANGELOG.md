@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.6.2 — Large-scene projection and automatic render preparation
+
+- Collapse behind-camera and out-of-frame projected cards instead of falling back to tilted geometry. Cap projected support to prevent near-camera background splats from stretching through city scans. Source records and per-splat indices remain intact.
+- Keep perspective covariance and camera invalidation active at Pixel Footprint 0; zero now disables only the low-pass filter.
+- Add Auto Prepare Redshift on Import, enabled for new objects. Set depth/sampling floors once per new source; preserve stricter settings, subsequent manual edits and the saved preparation marker. Include render settings and marker in one undo step.
+- Skip redundant spatial normal smoothing for image-plane cards. Surface-aligned cards keep their existing smoothing behavior.
+- Add regressions for near-eye-plane splats, bounded support, frustum-edge overlap, source-index preservation, zero-filter camera changes and once-per-source render preparation.
+- Camera-facing geometry is specific to one view; use surface-aligned cards for secondary views or MoGraph movement across frame boundaries. A source SOG does not supply website camera/background settings.
+
 ## 0.6.1 — Source fidelity for every new object
 
 - New objects start at the full 3,000,000 import cap and a 1/255 opacity threshold instead of 262,144 and 0.02. Dense scans no longer require a manual detail-preset step to avoid aggressive initial sampling.

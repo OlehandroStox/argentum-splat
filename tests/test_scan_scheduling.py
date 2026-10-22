@@ -184,12 +184,18 @@ class PreparationKeyTests(unittest.TestCase):
         self.assertEqual(loading.non_view_key(a), loading.non_view_key(b))
 
     def test_inactive_projection_does_not_invalidate_legacy_geometry(self):
-        for camera_facing, variance in ((False, .3), (True, 0.)):
+        for camera_facing, variance in ((False, .3), (False, 0.)):
             values = dict(VALUES, camera_facing=camera_facing, pixel_variance=variance,
                           projection=dict(PROJECTION))
             changed = dict(values, projection=dict(PROJECTION, focal_x=2000.))
             with self.subTest(camera_facing=camera_facing, variance=variance):
                 self.assertEqual(request(values)["key"], request(changed)["key"])
+
+    def test_zero_filter_still_tracks_projection(self):
+        values = dict(VALUES, camera_facing=True, pixel_variance=0., projection=dict(PROJECTION))
+        changed = dict(values, projection=dict(PROJECTION, focal_x=2000.))
+        self.assertNotEqual(request(values)['spatial_key'], request(changed)['spatial_key'])
+        self.assertEqual(request(values, degree=0)['color_key'], request(changed, degree=0)['color_key'])
 
     def test_projection_key_is_an_immutable_snapshot(self):
         projection = dict(PROJECTION)
@@ -265,6 +271,8 @@ class InteractiveSchedulingTests(unittest.TestCase):
             "argentum_splat.plugin": self.plugin}))
         self.start_patch(patch.object(argentum_splat, "plugin", self.plugin, create=True))
         self.start_patch(patch.object(argentum_splat, "assets", self.assets, create=True))
+        self.quality = types.SimpleNamespace(auto_prepare_redshift=Mock(return_value=False))
+        self.start_patch(patch.dict(sys.modules, {'argentum_splat.quality': self.quality}))
         spec = importlib.util.spec_from_file_location("argentum_splat._scheduling_test",
             PLUGIN_ROOT / "argentum_splat" / "scene_jobs.py")
         self.module = importlib.util.module_from_spec(spec)

@@ -51,6 +51,8 @@ SOURCE_FRAME = 1081
 PREVIEW_SOURCE = 1082
 SUPPORT_AUTHOR = 1083
 PIXEL_VARIANCE = 1084
+AUTO_REDSHIFT = 1085
+AUTO_PREPARED_SOURCE = 1086
 # Shared by new objects and the explicit Source Fidelity action. Import limits
 # retain source records; they do not increase the AI model's Gaussian count.
 SOURCE_FIDELITY = {
@@ -69,6 +71,7 @@ DEFAULTS = {
     OPACITY: 1.0, IMAGE: "", STEPS: 20, SEED: 1, NUM_GAUSSIANS: 65536,
     OUTPUT_DIR: "", ALPHA_EROSION: 0,
     INPUT_MODE: 0, SOURCE_FRAME: 0,
+    AUTO_REDSHIFT: True, AUTO_PREPARED_SOURCE: "",
     **SOURCE_FIDELITY,
 }
 GEOMETRY_PARAMETERS = (

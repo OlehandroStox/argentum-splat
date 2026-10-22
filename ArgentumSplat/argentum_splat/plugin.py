@@ -63,7 +63,7 @@ def settings(op):
         "pixel_variance": float(op[I.PIXEL_VARIANCE] or 0.),
         "compact_buffers": True,
     }
-    if values['camera_facing'] and values['pixel_variance'] > 0.:
+    if values['camera_facing']:
         values['projection'] = screen_projection(op)
     return values
 
@@ -585,7 +585,7 @@ class SplatObject(InteractiveScan, c4d.plugins.ObjectData):
                   if self.cloud else 0)
         camera_dependent = bool(op[I.CAMERA_FACING] or (op[I.SH_DEGREE] and op[I.SH_STRENGTH] and degree))
         camera = projection_camera(op) if camera_dependent else None
-        if camera_dependent and op[I.PIXEL_VARIANCE]:
+        if op[I.CAMERA_FACING]:
             projection = screen_projection(op)
             camera = (camera, tuple(sorted(projection.items())) if projection else None)
         camera = loading.view_key(camera)

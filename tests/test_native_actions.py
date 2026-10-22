@@ -1,5 +1,6 @@
 """Run native-facing decision code with host doubles; no renderer emulation."""
 import ast
+import json
 from contextlib import nullcontext
 from pathlib import Path
 import sys
@@ -87,11 +88,12 @@ class NativeDecisionTests(unittest.TestCase):
         host = SimpleNamespace(DIRTYFLAGS_DATA=1, EXECUTIONRESULT_OK=0)
         cam = [(100., 0., -500.)]
         execute = function('plugin.py','Execute',dict(c4d=host,I=I,loading=loading,
-            color_configuration_key=lambda doc: (0,), projection_camera=lambda op: cam[0]),
+            color_configuration_key=lambda doc: (0,), projection_camera=lambda op: cam[0],
+            screen_projection=lambda op: None),
             'SplatObject')
         op = Op({I.CAMERA_FACING: True, I.PIXEL_VARIANCE: 0., I.SH_DEGREE: 0})
         op.SetDirty = Mock()
-        state = SimpleNamespace(last_color_key=(0,), last_camera=loading.view_key(cam[0]), cloud=None)
+        state = SimpleNamespace(last_color_key=(0,), last_camera=loading.view_key((cam[0],None)), cloud=None)
         cam[0] = (100.00000000000003, -1e-14, -500.)
         execute(state,op,None,None,None,None)
         op.SetDirty.assert_not_called()
@@ -122,7 +124,7 @@ class NativeDecisionTests(unittest.TestCase):
         op = Op()
         op.doc = SimpleNamespace(GetActiveRenderData=lambda:rd,StartUndo=Mock(),
             EndUndo=Mock(),AddUndo=Mock())
-        function('quality.py','prepare_redshift',dict(c4d=host,I=I))(op)
+        function('quality.py','prepare_redshift',dict(c4d=host,I=I))(op,source_marker='source identity')
         self.assertFalse(vp[host.REDSHIFT_RENDERER_ENABLE_AUTOMATIC_SAMPLING])
         self.assertEqual(vp[host.REDSHIFT_RENDERER_MAX_TRACE_DEPTH_TRANSPARENCY],200)
         self.assertEqual(vp[host.REDSHIFT_RENDERER_BASIC_MAX_TRACE_DEPTH_TRANSPARENCY],128)
@@ -130,6 +132,30 @@ class NativeDecisionTests(unittest.TestCase):
         self.assertEqual(vp[host.REDSHIFT_RENDERER_UNIFIED_ADAPTIVE_ERROR_THRESHOLD],.002)
         self.assertEqual(vp[host.REDSHIFT_RENDERER_BASIC_UNIFIED_ADAPTIVE_ERROR_THRESHOLD],.01)
         op.doc.EndUndo.assert_called_once()
+        op.doc.StartUndo.assert_called_once()
+        self.assertEqual(op[I.AUTO_PREPARED_SOURCE],'source identity')
+
+    def test_auto_render_preparation_runs_once_per_file_and_respects_opt_out(self):
+        op = Op({I.AUTO_REDSHIFT: True, I.AUTO_PREPARED_SOURCE: ''})
+        op.doc = SimpleNamespace(GetActiveRenderData=lambda: {1:1036219})
+        calls = []
+        def prepare(op, source_marker=None):
+            calls.append(source_marker)
+            op[I.AUTO_PREPARED_SOURCE] = source_marker
+        auto = function('quality.py','auto_prepare_redshift',dict(
+            c4d=SimpleNamespace(RDATA_RENDERENGINE=1), I=I, json=json, prepare_redshift=prepare))
+        source = ('city.sog',100,5000,3000000,.0039,False)
+        self.assertTrue(auto(op,source))
+        self.assertFalse(auto(op,source))
+        self.assertFalse(auto(op,source[:3]+(1000,.1,True)))
+        self.assertTrue(auto(op,('other.sog',)+source[1:]))
+        self.assertEqual(len(calls),2)
+        op[I.AUTO_REDSHIFT] = False
+        self.assertFalse(auto(op,source))
+        op[I.AUTO_REDSHIFT] = True
+        op.doc.GetActiveRenderData = lambda: {1:0}
+        self.assertFalse(auto(op,source))
+        self.assertEqual(len(calls),2)
 
 
 if __name__ == '__main__':

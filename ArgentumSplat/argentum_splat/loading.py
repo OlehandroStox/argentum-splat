@@ -32,8 +32,8 @@ def preparation_keys(source_key, values, camera, has_sh, color_config):
     stable_camera = view_key(camera)
     spatial_camera = stable_camera if values['camera_facing'] else (0., 0., -500.)
     projection = values.get('projection')
-    if values['camera_facing'] and projection and values.get('pixel_variance', 0.) > 0.:
-        spatial_camera = (stable_camera, values['pixel_variance'],
+    if values['camera_facing'] and projection:
+        spatial_camera = (stable_camera, values.get('pixel_variance', 0.),
                           tuple(sorted((key, view_key(value)) for key, value in projection.items())))
     spatial = (source_key, tuple(values[k] for k in
         ('scale', 'splat_scale', 'flip_y', 'camera_facing', 'smoothing')), spatial_camera)

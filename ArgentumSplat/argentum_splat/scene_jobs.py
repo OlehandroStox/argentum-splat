@@ -127,6 +127,8 @@ class InteractiveScan:
                 path = cached
             else:
                 path = source
+            from .quality import auto_prepare_redshift
+            auto_prepare_redshift(self.op, key)
             if request['key'] == self.ready_request and self.mesh_template is not None:
                 self.queued_request = None
                 self.set_progress('Ready — source unchanged; using the prepared scan.', 1.)

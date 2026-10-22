@@ -215,8 +215,8 @@ def _compile_projection(projection, pixel_variance):
     same camera-coordinate units as those basis vectors. width/height describe
     the image for which focal lengths and pixel scales were calculated.
     """
-    if not math.isfinite(pixel_variance) or pixel_variance <= 0.:
-        raise ValueError("Projected Gaussian pixel variance must be positive and finite.")
+    if not math.isfinite(pixel_variance) or pixel_variance < 0.:
+        raise ValueError("Projected Gaussian pixel variance must be nonnegative and finite.")
     basis = []
     for key in ("right", "up", "forward"):
         vector = tuple(float(v) for v in projection[key])
@@ -250,7 +250,12 @@ def _compile_projection(projection, pixel_variance):
     scale_x, scale_y = (float(projection[key]) for key in scale_keys)
     if not all(math.isfinite(v) and v > 0. for v in (scale_x, scale_y)):
         raise ValueError("Projection focal lengths or pixel scales must be positive and finite.")
-    return (basis[0], basis[1], inverse, orthographic, scale_x, scale_y, pixel_variance)
+    normal = norm(cross(norm(basis[0]), norm(basis[1])))
+    if dot(normal, basis[2]) > 0.:
+        normal = mul(normal, -1.)
+    hidden = ((0., 0., 0.), (0., 0., 0.), normal)
+    return (basis[0], basis[1], inverse, orthographic, scale_x, scale_y, pixel_variance,
+            float(projection['width']), float(projection['height']), hidden)
 
 
 def _projected_axes(axes, center, camera, projection):
@@ -259,19 +264,29 @@ def _projected_axes(axes, center, camera, projection):
     Cards lie in a plane parallel to the image, so the ellipse defined by the
     perspective Jacobian maps back to its pixel covariance without an additional
     oblique-card approximation. This does not turn cards into a rasterizer.
-    Invalid/behind-camera projections return None to use the existing fallback.
+    Hidden/singular projections collapse in place, preserving source indices.
+    Never fall back to a tilted card behind the projection camera: a large
+    background Gaussian can then intersect rays in front of that camera.
     """
-    right, up, inverse, orthographic, scale_x, scale_y, pixel_variance = projection
+    right, up, inverse, orthographic, scale_x, scale_y, pixel_variance, width, height, hidden = projection
     relative = (center[0]-camera[0], center[1]-camera[1], center[2]-camera[2])
     x, y, z = (dot(row, relative) for row in inverse)
     if not all(math.isfinite(v) for v in (x, y, z)) or z <= 1e-8:
-        return None
+        return hidden
+    # Bound support in pixel space, including when the camera is inside a scan.
+    # A distant centre close to the eye plane must not grow a kilometre-wide
+    # card through the whole image. The cap scales with the output dimensions.
+    sigma_limit = min(1024., width, height) / math.sqrt(8.)
+    support_limit = 3. * math.sqrt(2.) * sigma_limit
     if orthographic:
         world_pixel_x, world_pixel_y = scale_x, scale_y
         projected = [(dot(inverse[0], a)/scale_x, dot(inverse[1], a)/scale_y)
                      for a in axes]
     else:
         world_pixel_x, world_pixel_y = z/scale_x, z/scale_y
+        if (abs(x) > (width*.5 + support_limit)*world_pixel_x or
+                abs(y) > (height*.5 + support_limit)*world_pixel_y):
+            return hidden
         slope_x, slope_y = x/z, y/z
         projected = []
         for axis in axes:
@@ -279,11 +294,13 @@ def _projected_axes(axes, center, camera, projection):
             projected.append(((ax-slope_x*az)/world_pixel_x,
                               (ay-slope_y*az)/world_pixel_y))
     if not all(math.isfinite(v) for pair in projected for v in pair):
-        return None
+        return hidden
 
     # Work at normalized magnitude, retaining the small eigenvalue through the
     # Cauchy-Binet determinant instead of subtracting nearly equal eigenvalues.
     largest = max(math.sqrt(pixel_variance), max(abs(v) for pair in projected for v in pair))
+    if largest == 0.:
+        return hidden
     projected = [(px/largest, py/largest) for px, py in projected]
     ridge = (math.sqrt(pixel_variance)/largest)**2
     xx = sum(px*px for px, py in projected)
@@ -295,17 +312,22 @@ def _projected_axes(axes, center, camera, projection):
     determinant += ridge*(xx+yy) + ridge*ridge
     major_squared = (xx+yy+2.*ridge+math.hypot(xx-yy, 2.*xy))/2.
     if major_squared <= 0. or determinant <= 0.:
-        return None
-    major = largest*math.sqrt(major_squared)
-    minor = largest*math.sqrt(determinant/major_squared)
+        return hidden
+    major = min(sigma_limit, largest*math.sqrt(major_squared))
+    minor = min(sigma_limit, largest*math.sqrt(determinant/major_squared))
     angle = .5*math.atan2(2.*xy, xx-yy)
     cosine, sine = math.cos(angle), math.sin(angle)
+    half_x = 3.*(major*abs(cosine) + minor*abs(sine))
+    half_y = 3.*(major*abs(sine) + minor*abs(cosine))
+    if (abs(x/world_pixel_x) - half_x > width*.5 or
+            abs(y/world_pixel_y) - half_y > height*.5):
+        return hidden
     u = tuple(3.*major*(right[i]*(cosine*world_pixel_x) + up[i]*(sine*world_pixel_y))
               for i in range(3))
     v = tuple(3.*minor*(right[i]*(-sine*world_pixel_x) + up[i]*(cosine*world_pixel_y))
               for i in range(3))
     if not all(math.isfinite(value) for vector in (u, v) for value in vector):
-        return None
+        return hidden
     # Normalize each axis first to avoid overflowing a cross product when a
     # finite but large object transform is involved. Reflection is supported.
     normal = norm(cross(norm(u), norm(v)))
@@ -316,14 +338,14 @@ def _projected_axes(axes, center, camera, projection):
 
 
 def projected_card_axes(splat, camera, global_scale, splat_scale, flip_y,
-                        projection, pixel_variance=.3):
-    """Optional perspective/orthographic card helper; zero keeps legacy output.
+                        projection, pixel_variance=.075):
+    """Perspective/orthographic cards; zero disables only the low-pass filter.
 
     ``pixel_variance`` is the added variance in pixel squared, not a world-space
-    radius. 0.3 is the usual Gaussian screen-space low-pass setting. Camera and
+    radius. The default uses actual pixel coordinates. Camera and
     projection basis must be expressed in the same local frame as the cloud.
     """
-    compiled = _compile_projection(projection, pixel_variance) if pixel_variance else None
+    compiled = _compile_projection(projection, pixel_variance) if projection else None
     return card_axes(splat, camera, global_scale, splat_scale, flip_y, True, compiled)
 
 
@@ -436,7 +458,7 @@ def prepare_geometry(cloud, settings, camera=(0., 0., -500.), progress=None):
     projection = settings.get("projection")
     pixel_variance = settings.get("pixel_variance", 0.)
     projection = (_compile_projection(projection, pixel_variance)
-                  if camera_facing and projection is not None and pixel_variance else None)
+                  if camera_facing and projection else None)
     for index, splat in enumerate(cloud.splats):
         if progress and index % 2048 == 0:
             progress('Prepare geometry', index, len(cloud.splats))
@@ -446,8 +468,12 @@ def prepare_geometry(cloud, settings, camera=(0., 0., -500.), progress=None):
         u_axes.append(u)
         v_axes.append(v)
         normals.append(normal)
-        widths.append(math.hypot(*u))
-    normals = smooth_normals(centers, normals, widths, settings.get("smoothing", 0), progress)
+        # Invisible zero-area cards still keep one normal/index per source.
+        widths.append(max(1e-8, math.hypot(*u)))
+    # Projected cards share one image plane; smoothing identical normals adds
+    # no information and can allocate a huge spatial grid for city scans.
+    if projection is None:
+        normals = smooth_normals(centers, normals, widths, settings.get("smoothing", 0), progress)
     if compact and not isinstance(normals, Vec3Buffer):
         normals = Vec3Buffer(normals)
     return centers, u_axes, v_axes, normals

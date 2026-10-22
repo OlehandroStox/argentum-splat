@@ -1,4 +1,4 @@
-"""Explicit, undoable quality actions; never silently modify render settings."""
+"""Undoable quality actions and opt-out, once-per-source render preparation."""
 import json
 import math
 from pathlib import Path
@@ -45,8 +45,8 @@ def apply_detail_preset(op):
     c4d.EventAdd()
 
 
-def prepare_redshift(op):
-    """Raise depth/sampling floors only after the user presses the named button."""
+def prepare_redshift(op, source_marker=None):
+    """Raise depth/sampling floors; preserve stricter settings and colour pipeline."""
     doc = op.GetDocument()
     rd = doc.GetActiveRenderData()
     if rd[c4d.RDATA_RENDERENGINE] != 1036219:
@@ -91,9 +91,26 @@ def prepare_redshift(op):
             "Existing stricter settings are preserved. "
             "Rendering can take longer."
         )
+        if source_marker is not None:
+            op[I.AUTO_PREPARED_SOURCE] = source_marker
     finally:
         doc.EndUndo()
     c4d.EventAdd()
+
+
+def auto_prepare_redshift(op, source_key):
+    """Prepare each new source once; later camera/LOOK edits do not reset RS."""
+    if not op[I.AUTO_REDSHIFT] or not source_key:
+        return False
+    marker = json.dumps(source_key[:3])
+    if op[I.AUTO_PREPARED_SOURCE] == marker:
+        return False
+    doc = op.GetDocument()
+    if not doc or doc.GetActiveRenderData()[c4d.RDATA_RENDERENGINE] != 1036219:
+        return False
+    # Persist in the same undo step so later manual settings survive reopen.
+    prepare_redshift(op, source_marker=marker)
+    return True
 
 
 def source_camera_data(op):

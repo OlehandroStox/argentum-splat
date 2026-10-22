@@ -112,8 +112,8 @@ class ProjectedCardTests(unittest.TestCase):
         _, u2, v2, _ = g.projected_card_axes(source, (0., 0., 0.), 1., 1., False, high)
         sigma1 = math.hypot(*u1)/3.
         sigma2 = math.hypot(*u2)/3.
-        self.assertAlmostEqual(sigma1*sigma1, .01**2+.3*(10./100.)**2)
-        self.assertAlmostEqual(sigma2*sigma2, .01**2+.3*(10./200.)**2)
+        self.assertAlmostEqual(sigma1*sigma1, .01**2+.075*(10./100.)**2)
+        self.assertAlmostEqual(sigma2*sigma2, .01**2+.075*(10./200.)**2)
         self.assertGreater(sigma1, sigma2)
         self.assertAlmostEqual(math.hypot(*v1), math.hypot(*u1))
         self.assertAlmostEqual(math.hypot(*v2), math.hypot(*u2))
@@ -133,15 +133,15 @@ class ProjectedCardTests(unittest.TestCase):
         distant_axes = g.projected_card_axes(distant, (0., 0., 0.), 1., 1., False, settings)[1:]
         self.assertEqual(first_axes, distant_axes)
 
-    def test_behind_or_near_camera_uses_finite_legacy_fallback(self):
+    def test_behind_or_near_camera_collapses_without_fallback(self):
         for depth in (0., 1e-20, -1., -100.):
             source = splat((0., 0., depth))
             actual = g.projected_card_axes(source, (0., 0., 0.), 1., 1., False, projection())
-            expected = g.card_axes(source, (0., 0., 0.), 1., 1., False, True)
-            self.assertEqual(actual, expected)
+            self.assertEqual(actual[0],source.position)
+            self.assertEqual(actual[1:3],((0.,0.,0.),(0.,0.,0.)))
             self.assertTrue(all(math.isfinite(v) for vector in actual for v in vector))
 
-    def test_zero_variance_or_missing_projection_keeps_legacy_path_exactly(self):
+    def test_missing_projection_keeps_legacy_path_exactly(self):
         source = splat((2., -3., 10.))
         camera = (0., 0., 0.)
         old = g.card_axes(source, camera, 1., 1., False, True)
@@ -152,6 +152,37 @@ class ProjectedCardTests(unittest.TestCase):
                                                        projection={}, pixel_variance=0.), camera), original)
         self.assertEqual(g.prepare_geometry(cloud, dict(scale=1., camera_facing=True,
                                                        pixel_variance=.3), camera), original)
+
+    def test_zero_variance_retains_perspective_covariance(self):
+        self.assertScreenCovariance(splat((3.,-2.,10.),scales=(.2,.4,2.)),
+            (0.,0.,0.),projection(),((1.,0.,0.),(0.,1.,0.),(0.,0.,1.)),variance=0.)
+
+    def test_offscreen_near_eye_plane_does_not_create_horizon_streaks(self):
+        source = splat((1000.,10.,.0001),scales=(20.,30.,100.))
+        result = g.projected_card_axes(source,(0.,0.,0.),1.,1.,False,projection())
+        self.assertEqual(result[1:3],((0.,0.,0.),(0.,0.,0.)))
+
+    def test_large_visible_gaussian_has_bounded_pixel_support(self):
+        source = splat((0.,0.,.0001),scales=(1e6,1e5,100.))
+        result = g.projected_card_axes(source,(0.,0.,0.),1.,1.,False,projection())
+        for axis in result[1:3]:
+            radius = math.hypot(axis[0]*800./.0001,axis[1]*600./.0001)
+            self.assertLessEqual(radius,3.*1024/math.sqrt(8.)+1e-6)
+            self.assertGreater(radius,0.)
+
+    def test_footprint_overlapping_image_edge_is_retained(self):
+        result = g.projected_card_axes(splat((10.2,0.,10.),scales=(.2,.2,.01)),
+            (0.,0.,0.),1.,1.,False,projection())
+        self.assertGreater(math.hypot(*result[1]),0.)
+
+    def test_culling_preserves_source_indices_and_smoothing_is_safe(self):
+        cloud = core.SplatCloud([splat(),splat((0.,0.,-10.)),splat((1e6,0.,.001))],3)
+        values = dict(scale=1.,camera_facing=True,projection=projection(),pixel_variance=.075)
+        a = g.prepare_geometry(cloud,dict(values,smoothing=0),(0.,0.,0.))
+        b = g.prepare_geometry(cloud,dict(values,smoothing=2),(0.,0.,0.))
+        self.assertEqual(a,b)
+        self.assertEqual(a[0],[s.position for s in cloud.splats])
+        self.assertEqual(a[1][1:],[(0.,0.,0.)]*2)
 
     def test_surface_aligned_cards_ignore_optional_projection(self):
         cloud = core.SplatCloud([splat()], 1)
@@ -165,7 +196,7 @@ class ProjectedCardTests(unittest.TestCase):
         prepared = g.prepare_geometry(cloud, dict(scale=1., camera_facing=True,
             projection=projection(), pixel_variance=.3), (0., 0., 0.),
             lambda *args: progress.append(args))
-        expected = g.projected_card_axes(cloud.splats[0], (0., 0., 0.), 1., 1., False, projection())
+        expected = g.projected_card_axes(cloud.splats[0], (0., 0., 0.), 1., 1., False, projection(), .3)
         for component, scalar in zip(prepared, expected):
             self.assertEqual(component, [scalar])
         self.assertEqual(progress, [("Prepare geometry", 0, 1)])
