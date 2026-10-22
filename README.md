@@ -3,7 +3,7 @@
 <h1 align="center">Argentum Splat</h1>
 <p align="center"><strong>Images to 3D Gaussian splats. Inside Cinema 4D.</strong><br>Free, open-source integration for Cinema 4D 2027 and Redshift on Windows.</p>
 <p align="center">
-  <a href="https://github.com/OlehandroStox/argentum-splat/releases/download/v0.6.2/ArgentumSplat-0.6.2-C4D2027-Windows.zip">Download 0.6.2</a> ·
+  <a href="https://github.com/OlehandroStox/argentum-splat/releases/download/v0.7.0/ArgentumSplat-0.7.0-C4D2027-Windows.zip">Download 0.7.0</a> ·
   <a href="#install">Install</a> ·
   <a href="docs/controls.md">Controls</a> ·
   <a href="README.ru.md">Русский</a> ·
@@ -18,12 +18,14 @@
 
 Generate a static 3D Gaussian model from one image with **local TripoSplat inference**, or load an existing Gaussian scan. Adjust its appearance, render it with Redshift, and use Cinema 4D deformers and MoGraph.
 
-> **Preview release:** version 0.6.2 uses development plugin IDs `1000007–1000009`, not registered permanent Maxon IDs. They can conflict with another plugin using those IDs. Test in a separate C4D preferences folder before production use. [Details and compatibility](docs/installation.md#plugin-ids).
+> **Preview release:** version 0.7.0 uses development plugin IDs `1000007–1000009`, not registered permanent Maxon IDs. They can conflict with another plugin using those IDs. Test in a separate C4D preferences folder before production use. [Details and compatibility](docs/installation.md#plugin-ids).
 
-## Current release: 0.6.2
+## Current release: 0.7.0
 
-**[Download the Windows ZIP](https://github.com/OlehandroStox/argentum-splat/releases/download/v0.6.2/ArgentumSplat-0.6.2-C4D2027-Windows.zip)** · [Release notes](https://github.com/OlehandroStox/argentum-splat/releases/tag/v0.6.2)
+**[Download the Windows ZIP](https://github.com/OlehandroStox/argentum-splat/releases/download/v0.7.0/ArgentumSplat-0.7.0-C4D2027-Windows.zip)** · [Release notes](https://github.com/OlehandroStox/argentum-splat/releases/tag/v0.7.0)
 
+- **Automatic first view:** in an otherwise empty scene, fit an editable camera to a small model or large scan. Reuse matching AI source-camera metadata when available. Existing scene cameras and hand-edited import cameras stay unchanged.
+- **Frame Loaded Scan:** create a separate fitted camera on demand. Source Summary reports loaded/source counts, SH data, opacity filtering and import-limit sampling.
 - **Large-scene projection:** behind-camera splats collapse safely, screen-space bounds prevent near-camera background streaks, and Pixel Footprint 0 retains perspective projection.
 - **Automatic Redshift preparation:** new objects prepare transparency depth and sampling once per new source, with an opt-out checkbox. Later camera/LOOK edits preserve manual render settings.
 - **Quality by default:** new objects retain up to 3 million splats at a 1/255 opacity threshold, with captured-colour lighting, full available SH and perspective filtering. Existing scene values stay intact.
@@ -35,7 +37,7 @@ Generate a static 3D Gaussian model from one image with **local TripoSplat infer
 - **Less repeated work:** LOOK weight edits reuse geometry. With Camera-Facing Cards off, camera movement reuses spatial data and updates SH colours as needed; moving lights does not reload the source file.
 - **Checked for motion design:** native Fracture + Plain Effector and Bend were tested across 13 frames, alongside camera/light changes and Redshift previews.
 
-Validated with **199 portable tests on Python 3.10 and 3.12**, plus native cache/update checks in Cinema 4D 2027. Separate fixtures measured about **88% less retained Python source-cloud memory** and **82.8% less retained prepared-buffer memory**; these are not whole-process RAM savings or real-time guarantees. Earlier installation checks include real image-to-3D generation in a fresh Python 3.12 environment. Large scans still take time to load; Camera-Facing Cards intentionally rebuild orientation. See the [validation scope](docs/validation.md) for test conditions and limits.
+Validated with **214 portable tests on Python 3.10 and 3.12**, plus native cache/update checks in Cinema 4D 2027. Separate fixtures measured about **88% less retained Python source-cloud memory** and **82.8% less retained prepared-buffer memory**; these are not whole-process RAM savings or real-time guarantees. Earlier installation checks include real image-to-3D generation in a fresh Python 3.12 environment. Large scans still take time to load; Camera-Facing Cards intentionally rebuild orientation. See the [validation scope](docs/validation.md) for test conditions and limits.
 
 For the tested **`Raspberry.sog`** (approximately 2.37 million splats), the 3-million limit keeps all **2,309,943** splats passing the 1/255 opacity threshold: **97.4% of the source**, without additional reservoir sampling. The remaining splats are opacity-filtered. Larger files can still be sampled, and the Redshift card result is not guaranteed to match a native Gaussian renderer exactly.
 
@@ -58,7 +60,7 @@ For the tested **`Raspberry.sog`** (approximately 2.37 million splats), the 3-mi
 | **Video / sequence input** | Pick and preview one frame, then generate one static model from it. |
 | **Redshift rendering** | Elliptical Gaussian-opacity cards, editable node material, emission/diffuse/transmission controls. |
 | **Colour & view dependence** | Gamma, contrast, hue, saturation, level; SH1–SH3 view-dependent colour when present in the scan. |
-| **Detail tools** | Source Fidelity preset, explicit Redshift quality setup, estimated source camera for new AI results. |
+| **Detail tools** | Automatic initial framing and Redshift preparation, Source Summary, Source Fidelity preset and editable overview/source cameras. |
 | **Motion design** | Native deformable geometry and a MoGraph Fracture rig for per-splat effectors. |
 | **Responsive workflow** | Background SCAN loading, batched C4D assembly, cached LOOK/orbit updates, point preview and progress with Cancel. |
 
@@ -66,7 +68,7 @@ Your media stays local. Initial setup downloads dependencies and model weights; 
 
 ## Install
 
-1. Download **[ArgentumSplat-0.6.2-C4D2027-Windows.zip](https://github.com/OlehandroStox/argentum-splat/releases/download/v0.6.2/ArgentumSplat-0.6.2-C4D2027-Windows.zip)**. This is the installer package; GitHub's automatic “Source code” archive is intended for development.
+1. Download **[ArgentumSplat-0.7.0-C4D2027-Windows.zip](https://github.com/OlehandroStox/argentum-splat/releases/download/v0.7.0/ArgentumSplat-0.7.0-C4D2027-Windows.zip)**. This is the installer package; GitHub's automatic “Source code” archive is intended for development.
 2. Extract the ZIP, close Cinema 4D and run **`ArgentumSplat/Install.cmd`**. It installs the plugin, extra-format converter, private Python runtime and AI dependencies automatically. If several C4D preferences folders exist, choose the one you use.
 3. Wait for the setup summary, then start C4D → **Extensions → ArgentumSplat → Argentum Splat**.
 
@@ -83,7 +85,7 @@ After the initial runtime download:
 1. Select an image in **Input File**. Start with one clear, fully visible object.
 2. Use **65,536 Gaussians**, **20 steps**, **Alpha Erosion = 0** for a first test.
 3. Click **Load / Generate from Input**. The progress window shows the current stage; **Cancel** stops background work.
-4. New objects already use **Source Fidelity** settings. Frame the object with your render camera. For an older object, **Source Fidelity – Preserve Detail** applies the quality preset explicitly.
+4. New objects already use **Source Fidelity** settings. **Auto Frame in Empty Scene** creates a fitted camera on first load in an otherwise empty scene. In an existing scene, use your camera or click **Frame Loaded Scan** for a separate overview. For an older object, **Source Fidelity – Preserve Detail** applies the quality preset explicitly.
 5. Start rendering in **RS Render View**. **Auto Prepare Redshift on Import** sets transparency depth and sampling for each new source. Turn it off to keep full manual control; **Set Redshift Detail Quality** remains available for an explicit reset.
 
 Generation time depends on the GPU, image and settings. The house example used 65,536 Gaussians, 20 steps, seed 42 and about 45 seconds of AI processing on an RTX 4070; loading and rendering take additional time.

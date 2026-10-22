@@ -1,5 +1,17 @@
 # Validation scope
 
+## 0.7.0 automatic import framing
+
+**214 portable tests pass on Python 3.10 and 3.12.** Added checks cover scales from 1e-6 to 1e6, portrait/square/wide aspect ratios, off-origin geometry, floaters, thin/flat bounds, camera ownership and user overrides, source-matched AI metadata, changed-limit summary refresh, cancellation of bounded analysis, and reuse of a parsed cloud between analysis and final-view preparation.
+
+Native Cinema 4D **2027.0.0 / Python 3.11.4 / RTX 4070 12 GB** checks used isolated documents. A 2,048-splat coloured sphere at source scales **0.001 and 1,000** (a millionfold size difference) automatically received a fitted camera. Both **320 × 320 Redshift renders** finished with result 0, in **1.843 s and 1.765 s** respectively. Both visible bounds were **(80, 80)–(240, 240)** pixels; mean absolute RGB differences were **0.137 / 0.124 / 0.116** on a 0–255 scale. Both display images were inspected. This checks scale-relative framing/clipping, not million-splat loading speed.
+
+A generated 2,048-splat **SOG** passed through the installed converter and received the fitted camera automatically. An existing **65,536-splat image-generated house PLY** used its matching `generation.json` source view; loading/preparation took **9.71 s** and its **320 × 320** Redshift render finished with result 0 in **4.031 s**. The inspected display image showed the house fully framed. AI inference was not rerun in this patch. Import analysis examines at most 8,192 records; source data is reused for the second preparation stage.
+
+Native checks also confirmed: an existing camera stayed unchanged; the Frame Loaded Scan button created a separate camera; changing source reused an untouched import camera; editing that camera prevented automatic replacement; manual clipping edits were respected; an unchanged Reload reused source, spatial, colour, mesh and analysis objects; save/reopen retained the ownership link and source marker. New controls were verified in the native description, including a non-editable Source Summary. The original user document remained active with unchanged root identities/transforms, and all isolated test documents were closed afterward.
+
+Callbacks/modules were refreshed in the running application; a cold restart was not repeated. The previous 0.6.2 full-source Iowa render below remains the large-scan rendering check; that expensive render was not repeated because 0.7.0 does not change projection math or shaders. Camera-facing updates still require preparation for a genuinely new view. A fitted overview cannot recover arbitrary source orientation, physical units or a website's camera/post effects. Existing scenes keep their saved settings and the default import cap remains 3 million splats.
+
 ## 0.6.2 large-scene projection
 
 **199 portable tests pass on Python 3.10 and 3.12.** New checks cover eye-plane singularities, behind-camera collapse, bounded projected support, image-edge overlap, source-index preservation, camera invalidation with Pixel Footprint 0, and once-per-source Redshift preparation. Render-setting floors and the saved source marker share one undo operation; stricter values remain intact.

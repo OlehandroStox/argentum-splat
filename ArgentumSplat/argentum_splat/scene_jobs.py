@@ -22,6 +22,7 @@ class InteractiveScan:
         self.mesh_template = None
         self.display_key = None
         self.last_scan_metrics = {}
+        self.source_analysis = None
 
     def source_key(self, op):
         path = assets.resolve_path(op, op[I.FILE])
@@ -140,6 +141,9 @@ class InteractiveScan:
             worker_request = dict(path=path, max_splats=key[3], min_opacity=key[4], raw_spz=key[5],
                 values=request['values'], camera=request['camera'],
                 converted_spz=converted and source.lower().endswith('.spz') and not key[5])
+            from . import scene_setup
+            worker_request['analysis'] = getattr(self,'source_analysis',None) if cloud is not None and cloud is self.cloud else None
+            worker_request['analyse_only'] = scene_setup.needs_initial_analysis(self.op,key)
             worker = loading.Preparation(worker_request, cloud, spatial, colors,
                                          self.bounds if spatial is not None else None)
             self.job = dict(kind='scan', worker=worker, request=request, dir=Path(path).parent,
@@ -228,6 +232,22 @@ class InteractiveScan:
             if not isinstance(worker.error, loading.Cancelled):
                 raise RuntimeError(str(worker.error))
             return
+        if worker.result.get('analyse_only'):
+            from . import scene_setup
+            # Recheck the live scene: a camera the user created during reading
+            # takes priority over automatic framing. Reuse the parsed source.
+            data=worker.result
+            try:
+                scene_setup.frame_scan(self.op,data['analysis'],automatic=True)
+            except Exception as error:
+                # Camera assistance must not make an otherwise valid scan fail.
+                data['analysis']['frame_warning']=str(error)
+            job['request']=self.request_snapshot()
+            next_request=dict(worker.request, values=job['request']['values'],
+                camera=job['request']['camera'],analyse_only=False,analysis=data['analysis'])
+            job['analysis_read_seconds']=worker.timings.get('read_seconds',0.)
+            job['worker']=loading.Preparation(next_request,cloud=data['cloud']).start()
+            return
         try:
             if job['builder'] is None:
                 job['builder'] = self.assemble_scan(job)
@@ -294,6 +314,7 @@ class InteractiveScan:
         # Only the final atomic publication changes generator-visible state.
         c4d.StopAllThreads()
         self.cloud, self.load_key = data['cloud'], job['request']['source_key']
+        self.source_analysis = data.get('analysis')
         self.spatial, self.colors, self.bounds = data['spatial'], data['colors'], data['bounds']
         # Label results with the camera that was actually calculated, not the
         # camera that happens to be current when this asynchronous job finishes.
@@ -321,6 +342,11 @@ class InteractiveScan:
             total_seconds=time.perf_counter()-job['started'],
             max_ui_slice_seconds=job['max_slice_seconds'],
             retained=len(self.cloud.splats), total=self.cloud.total_count)
+        if 'analysis_read_seconds' in job:
+            self.last_scan_metrics['read_seconds'] += job['analysis_read_seconds']
+        if self.source_analysis is not None:
+            from . import scene_setup
+            scene_setup.finish_import(self.op,self.load_key,self.source_analysis)
         self.release_scan()
         current = self.request_snapshot()
         if current['key'] != self.ready_request:

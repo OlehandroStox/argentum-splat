@@ -113,7 +113,7 @@ def auto_prepare_redshift(op, source_key):
     return True
 
 
-def source_camera_data(op):
+def source_camera_data(op, require_match=False):
     source = Path(assets.resolve_path(op, op[I.FILE]))
     metadata_path = source.parent/"generation.json"
     if not metadata_path.is_file():
@@ -121,6 +121,10 @@ def source_camera_data(op):
     if metadata_path.stat().st_size > 1024*1024:
         raise ValueError("Generation metadata is too large.")
     metadata = json.loads(metadata_path.read_text(encoding="utf8"))
+    if require_match:
+        names = {Path(str(metadata.get(key) or '')).name for key in ('ply_path','splat_path')}
+        if source.name not in names:
+            raise ValueError('Adjacent camera metadata belongs to another source file.')
     camera = metadata.get("source_camera", {})
     if not camera.get("available"):
         raise ValueError("Source camera is unavailable. Generate a new image with version 0.2 or later.")

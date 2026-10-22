@@ -1,4 +1,4 @@
-ARGENTUM SPLAT 0.6.2 — Cinema 4D 2027 / Windows / Redshift
+ARGENTUM SPLAT 0.7.0 — Cinema 4D 2027 / Windows / Redshift
 
 Бесплатная предварительная версия с открытым исходным кодом.
 Проект: https://github.com/OlehandroStox/argentum-splat
@@ -80,3 +80,8 @@ https://boosty.to/olehandrostox/donate — добровольные чаевые
 Built with DINOv3. Сторонние компоненты сохраняют собственные лицензии.
 Читайте LICENSE.txt, backend/THIRD_PARTY_NOTICES.md и backend/licenses/.
 Независимая разработка, не связанная с Maxon.
+
+Auto Frame in Empty Scene подбирает начальный кадр в пустой сцене.
+Frame Loaded Scan создаёт отдельную камеру для уже загруженной модели.
+Source Summary показывает точки, SH, фильтрацию и сокращение по лимиту.
+Существующие камеры и настройки сохранённых объектов не сбрасываются.

@@ -48,6 +48,9 @@ def describe(op, description, flags):
         if changed:
             description.SetParameter(did, container, parent)
     controls = (
+        (I.AUTO_FRAME, c4d.DTYPE_BOOL, 2001, 'Auto Frame in Empty Scene', 0),
+        (I.FRAME_SCAN, c4d.DTYPE_BUTTON, 2001, 'Frame Loaded Scan', 0),
+        (I.SOURCE_INFO, c4d.DTYPE_STRING, 2006, 'Source Summary', 0),
         (I.AUTO_REDSHIFT, c4d.DTYPE_BOOL, 2001, 'Auto Prepare Redshift on Import', 0),
         (I.PIXEL_VARIANCE, c4d.DTYPE_REAL, 2005, 'Pixel Footprint (variance; 0 = Off)', 2),
         (I.ALPHA_EROSION, c4d.DTYPE_LONG, 2000, 'Alpha Erosion (0 = Keep Fine Edges)', 8),
@@ -73,6 +76,9 @@ def describe(op, description, flags):
             container[c4d.DESC_DEFAULT] = I.DEFAULTS.get(key, 0)
         elif datatype == c4d.DTYPE_BOOL:
             container[c4d.DESC_DEFAULT] = I.DEFAULTS[key]
+        elif datatype == c4d.DTYPE_STRING:
+            container[c4d.DESC_CUSTOMGUI] = c4d.CUSTOMGUI_STRINGMULTI
+            container[c4d.DESC_EDITABLE] = False
         else:
             container[c4d.DESC_CUSTOMGUI] = c4d.CUSTOMGUI_BUTTON
         if key == I.INPUT_MODE:

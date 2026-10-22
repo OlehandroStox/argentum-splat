@@ -2,7 +2,7 @@
 import math
 import threading
 import time
-from . import core, geometry
+from . import core, geometry, import_analysis
 
 
 class Cancelled(Exception):
@@ -90,6 +90,8 @@ class Preparation:
             start, end = 0., .40
         elif stage == 'Decode colour':
             start, end = .40, .45
+        elif stage == 'Analyse source':
+            start, end = .40, .45
         elif stage == 'Prepare geometry':
             start, end = .45, .60
         elif stage == 'Smooth normals':
@@ -130,6 +132,12 @@ class Preparation:
             if not cloud.splats:
                 raise ValueError('No visible splats. Reduce Minimum Opacity or choose another scan.')
             self.check()
+            analysis = request.get('analysis')
+            if analysis is None:
+                analysis = import_analysis.analyse(cloud, self.progress)
+            if request.get('analyse_only'):
+                self.result = dict(cloud=cloud, analysis=analysis, analyse_only=True)
+                return
             start = time.perf_counter()
             spatial = self.spatial
             bounds = self.bounds
@@ -154,7 +162,7 @@ class Preparation:
             self.check()
             self.status = ('Data ready; preparing Cinema 4D geometry', .80)
             self.result = dict(cloud=cloud, spatial=spatial, colors=colors, bounds=bounds,
-                               colors_are_working=self.colors is not None)
+                               colors_are_working=self.colors is not None, analysis=analysis)
         except BaseException as error:
             # Traceback frames can retain the entire partially loaded reservoir
             # in a cycle after cancellation. Keep the error, not gigabytes of

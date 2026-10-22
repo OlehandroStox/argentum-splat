@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.7.0 — Automatic first view and source diagnostics
+
+- Add Auto Frame in Empty Scene, enabled for new objects. Fit small/large source bounds with size-relative near clipping, output-aspect support, robust floater handling and matching AI source-camera metadata.
+- Preserve user cameras, projection overrides, hand-edited generated cameras and existing scene content. Save the once-per-source marker and editable camera link with the document.
+- Add Frame Loaded Scan for an explicit separate overview and Source Summary for counts, SH, colour-space, filtering and sampling information.
+- Analyse at most 8,192 records in the background. Prepare the final view from the same parsed cloud, avoiding geometry preparation for a camera that is about to change. Reuse the analysis on LOOK/camera updates.
+- Preserve the 0.6.2 projection fixes, quality defaults, automatic Redshift preparation, progress/cancellation and cache reuse.
+- Add cross-scale/aspect, off-origin, floater, flat-scan, camera ownership, analysis reuse and graceful framing-failure regression tests.
+- The fitted overview does not infer arbitrary scan orientation, physical units or website camera/post effects. The 3-million default import cap and Redshift card-renderer approximation remain.
+
 ## 0.6.2 — Large-scene projection and automatic render preparation
 
 - Collapse behind-camera and out-of-frame projected cards instead of falling back to tilted geometry. Cap projected support to prevent near-camera background splats from stretching through city scans. Source records and per-splat indices remain intact.

@@ -603,7 +603,7 @@ class SplatObject(InteractiveScan, c4d.plugins.ObjectData):
             action = data["id"][0].id
             if action in (I.INITIALISE,I.GENERATE,I.CANCEL,I.SETUP,I.OPEN_OUTPUT,I.MOGRAPH,
                           I.DETAIL_PRESET,I.PREPARE_REDSHIFT,I.SOURCE_CAMERA,I.PREVIEW_SOURCE,
-                          I.SUPPORT_AUTHOR):
+                          I.SUPPORT_AUTHOR,I.FRAME_SCAN):
                 PENDING.append((self, action))
                 c4d.SpecialEventAdd(I.MESSAGE_ID)
         return True
@@ -617,7 +617,7 @@ class SplatObject(InteractiveScan, c4d.plugins.ObjectData):
         if key == I.CANCEL:
             return self.job is not None
         if key in (I.INITIALISE,I.GENERATE,I.SETUP,I.PREVIEW_SOURCE,I.IMAGE,I.INPUT_MODE,
-                   I.SOURCE_FRAME,I.NUM_GAUSSIANS,I.STEPS,I.SEED,I.ALPHA_EROSION):
+                   I.SOURCE_FRAME,I.NUM_GAUSSIANS,I.STEPS,I.SEED,I.ALPHA_EROSION,I.FRAME_SCAN):
             return self.job is None
         return True
 
@@ -965,6 +965,9 @@ class Coordinator(c4d.plugins.MessageData):
                 elif action == I.MOGRAPH:
                     from .mograph import create_rig
                     create_rig(op)
+                elif action == I.FRAME_SCAN:
+                    from .scene_setup import explicit_frame
+                    explicit_frame(op)
                 elif action in (I.DETAIL_PRESET,I.PREPARE_REDSHIFT,I.SOURCE_CAMERA):
                     from . import quality
                     if action == I.DETAIL_PRESET:

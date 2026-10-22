@@ -227,6 +227,7 @@ class FakeWorker:
 class FakeObject(dict):
     def __init__(self, source):
         super().__init__(I.DEFAULTS)
+        self[I.AUTO_FRAME] = False  # These tests exercise an existing framed scene.
         self[I.FILE] = str(source)
         self[I.MATERIAL] = "material"
         self.values = dict(VALUES)
@@ -273,6 +274,10 @@ class InteractiveSchedulingTests(unittest.TestCase):
         self.start_patch(patch.object(argentum_splat, "assets", self.assets, create=True))
         self.quality = types.SimpleNamespace(auto_prepare_redshift=Mock(return_value=False))
         self.start_patch(patch.dict(sys.modules, {'argentum_splat.quality': self.quality}))
+        self.setup = types.SimpleNamespace(needs_initial_analysis=Mock(return_value=False),
+            frame_scan=Mock(), finish_import=Mock())
+        self.start_patch(patch.dict(sys.modules, {'argentum_splat.scene_setup': self.setup}))
+        self.start_patch(patch.object(argentum_splat,'scene_setup',self.setup,create=True))
         spec = importlib.util.spec_from_file_location("argentum_splat._scheduling_test",
             PLUGIN_ROOT / "argentum_splat" / "scene_jobs.py")
         self.module = importlib.util.module_from_spec(spec)
@@ -342,6 +347,39 @@ class InteractiveSchedulingTests(unittest.TestCase):
         self.assertIs(job["worker"].cloud, self.instance.cloud)
         self.assertIs(job["worker"].spatial, self.instance.spatial)
         self.assertIsNone(job["worker"].colors)
+
+    def test_initial_analysis_transitions_without_reading_or_publishing_twice(self):
+        self.setup.needs_initial_analysis.return_value=True
+        self.instance.start_scan(explicit=True)
+        job=self.instance.job
+        first=job['worker']
+        self.assertTrue(first.request['analyse_only'])
+        source=object();report={'retained':2}
+        first.result=dict(cloud=source,analysis=report,analyse_only=True)
+        first.timings={'read_seconds':2.5}
+        first.done.set()
+        self.setup.frame_scan.side_effect=lambda *a,**k:setattr(self.op,'camera',CAMERA_B)
+        self.instance.poll_scan()
+        second=job['worker']
+        self.assertIsNot(second,first)
+        self.assertIs(second.cloud,source)
+        self.assertIs(second.request['analysis'],report)
+        self.assertFalse(second.request['analyse_only'])
+        self.assertEqual(second.request['camera'],CAMERA_B)
+        self.assertTrue(second.started)
+        self.assertIsNone(self.instance.mesh_template)
+
+    def test_camera_assistance_failure_does_not_abort_valid_scan(self):
+        self.setup.needs_initial_analysis.return_value=True
+        self.setup.frame_scan.side_effect=ValueError('camera unavailable')
+        self.instance.start_scan()
+        first=self.instance.job['worker']
+        first.result=dict(cloud=object(),analysis={},analyse_only=True)
+        first.done.set()
+        self.instance.poll_scan()
+        next_worker=self.instance.job['worker']
+        self.assertTrue(next_worker.started)
+        self.assertIn('camera unavailable',next_worker.request['analysis']['frame_warning'])
 
     def test_render_clone_reuses_live_cloud_evicted_by_two_other_scans(self):
         source_key = self.instance.source_key(self.op)
