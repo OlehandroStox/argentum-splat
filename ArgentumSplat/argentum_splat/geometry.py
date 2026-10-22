@@ -459,7 +459,7 @@ def prepare_geometry(cloud, settings, camera=(0., 0., -500.), progress=None):
     pixel_variance = settings.get("pixel_variance", 0.)
     projection = (_compile_projection(projection, pixel_variance)
                   if camera_facing and projection else None)
-    for index, splat in enumerate(cloud.splats):
+    for index, splat in enumerate(core.iter_attributes(cloud, 'geometry')):
         if progress and index % 2048 == 0:
             progress('Prepare geometry', index, len(cloud.splats))
         center, u, v, normal = card_axes(splat, camera, scale,
@@ -497,7 +497,7 @@ def prepare_colors(cloud, settings, camera=(0., 0., -500.), centers=None, progre
     correct = _batch_color_corrector(correction)
     evaluate_sh = core.evaluate_sh
     append = colors.append
-    for index, splat in enumerate(cloud.splats):
+    for index, splat in enumerate(core.iter_attributes(cloud, 'appearance')):
         if progress and index % 2048 == 0:
             progress('Prepare colour', index, len(cloud.splats))
         # Graphdeco convention: view direction is camera -> splat in source coordinates.
@@ -523,3 +523,15 @@ def prepare(cloud, settings, camera=(0., 0., -500.)):
     """Compatibility wrapper for callers which need a complete preparation."""
     spatial = prepare_geometry(cloud, settings, camera)
     return spatial + (prepare_colors(cloud, settings, camera, spatial[0]),)
+
+
+def card_indices(spatial, compact=False):
+    """Only omit zero-area projected cards; retain the immutable source arrays.
+
+    This is not density sampling or opacity pruning. Excluded cards could not
+    contribute to this camera. Disable compaction in a hierarchy (MoGraph) to
+    preserve one polygon per source and stable effector indexing.
+    """
+    if not compact:
+        return range(len(spatial[0]))
+    return array('I', (i for i, u in enumerate(spatial[1]) if any(u)))

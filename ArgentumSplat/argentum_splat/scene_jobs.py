@@ -220,6 +220,28 @@ class InteractiveScan:
                 else:
                     self.set_progress('Waiting for changes to settle…', None)
             return
+        # Never publish camera-dependent cards as Ready for a different view.
+        # Let file reading finish, then cancel obsolete arithmetic once the
+        # camera has settled. Reuse the validated cloud across restarts.
+        view_changed = current is not None and current['key'] != job['request']['key']
+        if view_changed:
+            if job.get('latest_view_key') != current['key']:
+                job['latest_view_key'] = current['key']
+                job['view_changed_at'] = time.monotonic()
+            settled = time.monotonic()-job['view_changed_at'] >= .35
+            if settled and getattr(worker, 'phase', '') == 'preparing':
+                worker.cancelled.set()
+                job['retargeting'] = True
+        elif not job.get('retargeting'):
+            job.pop('latest_view_key', None)
+            job.pop('view_changed_at', None)
+        if job.get('retargeting'):
+            if not worker.done.is_set():
+                return
+            if view_changed and time.monotonic()-job['view_changed_at'] < .35:
+                return
+            self.restart_view(current)
+            return
         if not worker.done.is_set():
             if time.monotonic()-job['last_progress'] >= .15:
                 self.set_progress(*worker.status)
@@ -248,6 +270,10 @@ class InteractiveScan:
             job['analysis_read_seconds']=worker.timings.get('read_seconds',0.)
             job['worker']=loading.Preparation(next_request,cloud=data['cloud']).start()
             return
+        if view_changed:
+            if time.monotonic()-job['view_changed_at'] >= .35:
+                self.restart_view(current)
+            return
         try:
             if job['builder'] is None:
                 job['builder'] = self.assemble_scan(job)
@@ -270,6 +296,33 @@ class InteractiveScan:
             self.release_scan()
             raise
 
+    def restart_view(self, request):
+        """Replace an obsolete view pass, keeping its parsed immutable source."""
+        job = self.job
+        old = job['worker']
+        assert old.done.is_set()
+        if job['builder'] is not None:
+            job['builder'].close()
+        data = old.result or {}
+        cloud = data.get('cloud', old.cloud)
+        analysis = data.get('analysis', old.analysis)
+        new_request = dict(old.request, values=request['values'], camera=request['camera'],
+                           analysis=analysis, analyse_only=False)
+        same_spatial = request['spatial_key'] == job['request']['spatial_key']
+        same_colors = request['color_key'] == job['request']['color_key']
+        spatial = data.get('spatial') if same_spatial else None
+        colors = data.get('colors') if same_colors and data.get('colors_are_working') else None
+        job['request'] = request
+        job['builder'] = None
+        job['retargeting'] = False
+        job['view_restarts'] = job.get('view_restarts', 0)+1
+        job['analysis_read_seconds'] = job.get('analysis_read_seconds', 0.)+old.timings.get('read_seconds', 0.)
+        job.pop('latest_view_key', None)
+        job['worker'] = loading.Preparation(new_request, cloud, spatial, colors,
+                                           data.get('bounds') if spatial is not None else None)
+        self.set_progress('Updating latest camera view — previous view is temporary.', 0.)
+        job['worker'].start()
+
     def assemble_scan(self, job):
         from . import plugin
         request, data = job['request'], job['worker'].result
@@ -283,6 +336,7 @@ class InteractiveScan:
                        .80+.04*min(start+4096,count)/max(1,count))
             colors = working
         data['colors'] = colors
+        data['colors_are_working'] = True
         yield ('Prepare material', .84)
         self.sync_material()
         request['material'] = self.op[I.MATERIAL]
@@ -342,6 +396,7 @@ class InteractiveScan:
             total_seconds=time.perf_counter()-job['started'],
             max_ui_slice_seconds=job['max_slice_seconds'],
             retained=len(self.cloud.splats), total=self.cloud.total_count)
+        self.last_scan_metrics.update(render_cards=mesh.GetPolygonCount(), view_restarts=job.get('view_restarts',0))
         if 'analysis_read_seconds' in job:
             self.last_scan_metrics['read_seconds'] += job['analysis_read_seconds']
         if self.source_analysis is not None:

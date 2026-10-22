@@ -4,15 +4,15 @@
 
 Labels match the plugin's English interface. Decimal LOOK controls increment by **0.1**; type a value for finer precision. Minimum Opacity increments by **0.001**. Existing values and animation keys are not rounded.
 
-## New-object defaults (0.6.1)
+## New-object defaults (0.7.1)
 
-New objects start with **Source Fidelity**: Maximum Splats **3,000,000**, Minimum Opacity **1/255 ≈ 0.00392157**, Camera-Facing Cards **on**, Pixel Footprint **0.075**, SH degree **3**, SH Strength **1**, Normal Smoothing **0**. LOOK starts with **sRGB Source to Scene Linear**, Highlight Limit **3**, Emission **1**, Diffuse **0**, Subsurface **0**. Global Scale **100**, Splat Scale **1** and Opacity Multiplier **1** remain unchanged.
+New objects start with **Source Fidelity**: Maximum Splats **4,000,000**, Minimum Opacity **1/255 ≈ 0.00392157**, Camera-Facing Cards **on**, Pixel Footprint **0.075**, SH degree **3**, SH Strength **1**, Normal Smoothing **0**. LOOK starts with **sRGB Source to Scene Linear**, Highlight Limit **3**, Emission **1**, Diffuse **0**, Subsurface **0**. Global Scale **100**, Splat Scale **1** and Opacity Multiplier **1** remain unchanged.
 
 The previous 262,144 import cap could discard most of a detailed scan; the 0.02 opacity threshold could remove faint details. Diffuse 1 added scene lighting to captured colours. The new defaults retain more source information without requiring the preset after every import. Attribute Manager's Reset to Default uses the same values.
 
 **Existing and duplicated objects keep their saved values.** Apply Source Fidelity explicitly to an older object. It preserves colour correction, scale, axis conversion and a lower opacity threshold. The preset does not reset a deliberately chosen Colour Management mode.
 
-Large imports and camera-facing updates need more time and RAM than a reduced scan. Point Preview stays on at **10,000 points**; it only reduces editor drawing. For draft work, lower Maximum Splats or turn Camera-Facing Cards off, accepting reduced detail or projection accuracy. Restore Source Fidelity for final work. Gaussian Count controls AI generation separately; the 3-million import limit does not create extra Gaussians.
+Large imports and camera-facing updates need more time and RAM than a reduced scan. Point Preview stays on at **10,000 points**; it only reduces editor drawing. For draft work, lower Maximum Splats or turn Camera-Facing Cards off, accepting reduced detail or projection accuracy. Restore Source Fidelity for final work. Gaussian Count controls AI generation separately; the 4-million import limit does not create extra Gaussians.
 
 ## Input
 
@@ -47,7 +47,7 @@ Scan reading/calculation runs in a worker; C4D geometry is assembled in short UI
 | SPZ: Unconverted Coordinates | Keep SPZ's source RUB coordinates. Normally position, rotation and SH are converted together. Flip Y is applied afterward. |
 | Normal Smoothing Passes | 0 disables; 1–8 averages nearby normals with aligned orientation. Does not blur the positions. Perspective camera-facing cards already share one normal; their redundant smoothing pass is skipped. |
 | Initialise / Reload | Load or refresh the scan with progress and Cancel. Unchanged source/settings reuse prepared data; file timestamp/size and loading settings invalidate the relevant caches. It does not rerun AI. |
-| Source Fidelity – Preserve Detail | Set Maximum Splats to 3,000,000, SH3 / SH Strength 1, Emission 1, Diffuse 0, Subsurface 0 and Normal Smoothing Passes 0. Enable Camera-Facing Cards and Pixel Footprint 0.075; clear Projection Camera to follow the current camera. Lower Minimum Opacity to at most 1/255, retaining a smaller existing threshold. Starts an update; Undo supported. |
+| Source Fidelity – Preserve Detail | Set Maximum Splats to 4,000,000, SH3 / SH Strength 1, Emission 1, Diffuse 0, Subsurface 0 and Normal Smoothing Passes 0. Enable Camera-Facing Cards and Pixel Footprint 0.075; clear Projection Camera to follow the current camera. Lower Minimum Opacity to at most 1/255, retaining a smaller existing threshold. Starts an update; Undo supported. |
 | Auto Prepare Redshift on Import | On for new objects. Apply the Redshift depth/sampling floors once per source path, modification time and file size. The marker survives save/reopen; later camera, LOOK and reload operations do not overwrite your manual render settings. Off keeps full manual control. No camera, lights, exposure or colour-management changes. Undo supported. |
 | Auto Frame in Empty Scene | On for new objects. Once per new source, create a camera when this is the only scene object and no user camera/Projection Camera is selected. Fit robust source bounds and adapt the near clipping plane to size; use matching AI camera metadata when available. Reuse an untouched generated camera for a changed source. Existing scene content and hand-edited cameras block automatic reframing. Source geometry, units and axes stay unchanged. |
 | Frame Loaded Scan | Create and activate a separate editable camera for the loaded model. Preserves earlier cameras. Starts a camera-dependent update using the parsed source; no file reread. |
@@ -56,7 +56,7 @@ Scan reading/calculation runs in a worker; C4D geometry is assembled in short UI
 
 The detail preset matches the new-object quality profile and can use more time and memory than an intentionally reduced import limit. SH3 evaluates only coefficients actually present in the file; it does not add SH to an SH0 model. The preset does not modify the source file or the document's display transform. **Auto Prepare Redshift on Import** applies render depth and sampling once for each new source; the explicit **Set Redshift Detail Quality** button remains available.
 
-**Status** reports retained / source splat counts and their percentage. The limit is now **3,000,000**; scans exceeding it after opacity filtering still use a deterministic sample. The tested `Raspberry.sog` contains approximately 2.37 million splats: at Minimum Opacity 1/255, 2,309,943 pass the filter (97.4% of the source). The 3-million limit retains all of those eligible splats without reservoir sampling; the remainder is removed by the opacity threshold. The preset cannot synthesize missing hair, hidden geometry or reflections. Polygon-card compositing, transparency and colour management differ from a native Gaussian renderer, so identical appearance is not guaranteed.
+**Status** reports retained / source splat counts and their percentage. The limit is now **4,000,000**; scans exceeding it after opacity filtering still use a deterministic sample. The tested `Raspberry.sog` contains approximately 2.37 million splats: at Minimum Opacity 1/255, 2,309,943 pass the filter (97.4% of the source). The 4-million limit retains all of those eligible splats without reservoir sampling; the remainder is removed by the opacity threshold. The preset cannot synthesize missing hair, hidden geometry or reflections. Polygon-card compositing, transparency and colour management differ from a native Gaussian renderer, so identical appearance is not guaranteed.
 
 ## LOOK
 
@@ -105,7 +105,7 @@ The C4D plugin keeps binary Gaussian PLY source records packed when **Maximum Sp
 | Global Scale | Scale the whole model. |
 | Pixel Footprint (variance; 0 = Off) | Image-space filtering for perspective Camera-Facing Cards. Default 0.075 preserves a small footprint for thin details; 0 disables filtering. Range 0–2, step 0.025. Higher values broaden the projected splats and can soften detail. |
 | Splat Scale | Change card sizes without moving their centres. Oversizing can blur details; undersizing can create holes. |
-| Maximum Splats | Retain up to this many opacity-eligible splats; above the limit, take a deterministic uniform sample across the input file. Default and maximum 3,000,000; this retains existing splats rather than generating new ones. Loading/filter changes queue a new load after changes settle; Initialise / Reload starts it immediately. |
+| Maximum Splats | Retain up to this many opacity-eligible splats; above the limit, take a deterministic uniform sample across the input file. Default and maximum 4,000,000; this retains existing splats rather than generating new ones. Loading/filter changes queue a new load after changes settle; Initialise / Reload starts it immediately. |
 | Minimum Opacity | Discard nearly transparent splats on load. Default 1/255 (about 0.00392157). Lower values retain fine details but may increase memory/render work. |
 | Opacity Multiplier | Scale the opacity of retained splats. |
 | Flip Y Axis | Reflect Y along with the Gaussian covariance. AI results enable this to stand upright in C4D. |
@@ -136,7 +136,7 @@ Redshift blends scene-linear material colours and traces polygon cards. A Gaussi
 
 Perspective Camera-Facing Cards now collapse splats behind the projection camera and outside its bounded footprint. Their source records remain loaded. Pixel Footprint **0 disables only filtering**, not perspective projection. The projected radius is capped relative to output resolution to prevent eye-plane singularities from drawing long streaks.
 
-These cards are prepared for one camera. For MoGraph movement across the frame, mirrors or secondary views, turn Camera-Facing Cards off to retain all oriented cards, accepting the projection approximation. SOG does not carry a website viewer's complete camera, background or display settings; choose your composition in C4D. Files larger than the 3-million retention cap can still lose detail through sampling.
+These cards are prepared for one camera. For MoGraph movement across the frame, mirrors or secondary views, turn Camera-Facing Cards off to retain all oriented cards, accepting the projection approximation. SOG does not carry a website viewer's complete camera, background or display settings; choose your composition in C4D. Files larger than the 4-million retention cap can still lose detail through sampling.
 
 ## Automatic framing and Source Summary
 
@@ -144,4 +144,14 @@ Analysis examines at most 8,192 evenly distributed records. The outer 0.5% per a
 
 **Source Summary** reports retained/source counts, SH degree and source colour space, and warns about opacity filtering, import-limit sampling or point-cloud PLY without Gaussian shape attributes. It does not measure reconstruction quality.
 
-An overview is an initial viewing aid. SOG/PLY files generally do not provide a website camera, a reliable up direction or real-world units, so arbitrary models cannot be guaranteed to open upright or match a website pixel for pixel. The default 3-million cap still applies. Existing objects keep saved parameters; use Source Fidelity and Frame Loaded Scan explicitly when desired.
+An overview is an initial viewing aid. SOG/PLY files generally do not provide a website camera, a reliable up direction or real-world units, so arbitrary models cannot be guaranteed to open upright or match a website pixel for pixel. The default 4-million cap still applies. Existing objects keep saved parameters; use Source Fidelity and Frame Loaded Scan explicitly when desired.
+
+
+## 0.7.1 large-scan view updates
+
+- Default and maximum retention are now **4,000,000**, with the existing 1/255 opacity threshold. Saved objects keep their values; apply Source Fidelity to raise an older limit.
+- Standalone objects omit only zero-area projected cards from the native render mesh. The loaded cloud, viewport preview and source order are retained. Moving the camera rebuilds its required subset. Any object parent disables this compaction, preserving MoGraph indices; adding/removing the parent invalidates the prepared geometry.
+- Binary Gaussian PLY geometry, colour and opacity passes decode only the fields they use, without changing the validated source values. No new Python package is required.
+- File reading is never cancelled just because the camera moves. Once reading finishes, obsolete arithmetic can stop after 0.35 seconds of settled camera motion and restart from the same cloud. Obsolete finished cards are not published as the new Ready result.
+- During preparation, IPR can still show the **previous view** and therefore temporary distorted cards. Wait for **Ready** at the current camera before judging import quality. Status and Cancel remain available; automatic view changes do not repeatedly open a dialog. This is not a real-time Gaussian rasterizer.
+- Strongly heavy-tailed environments use their central region for initial framing only; distant source data is not discarded. Existing cameras stay unchanged. A fitted overview cannot infer an author's subject or preferred angle.

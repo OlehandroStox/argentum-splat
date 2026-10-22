@@ -1,5 +1,23 @@
 # Validation scope
 
+## 0.7.1 large environments and obsolete camera work
+
+**222 portable tests pass on Python 3.10 and 3.12.** Added checks cover selective attribute decoding for all supported SH degrees, big/little endian and mixed float/double layouts; compact card selection and source order; hierarchy-driven invalidation; environment tails at multiple scales; camera settling, cancellation and restart without discarding the parsed source.
+
+Native **Cinema 4D 2027.0.0 / Python 3.11.4 / RTX 4070 12 GB / 32 GB system RAM** validation used the user's `Where it belongs.sog` (3,999,516 source records). The old 3-million cap sampled 982,148 otherwise eligible records. With the new 4-million cap, all **3,982,148 opacity-eligible splats** were retained (**99.57%** of source); **17,368** were below 1/255. There was no reservoir sampling. At the preserved user camera, **895,177 nonzero projected cards** were emitted, while all retained source records and preview data stayed available.
+
+Full parsing/preparation/assembly took **339.15 s**: **77.66 s** reading, **142.20 s** geometry and **86.19 s** SH3 colour; the longest measured assembly slice was **0.928 s**. Its **1280 × 720 Redshift render** completed with **result 0 in 82.89 s**. The native ACEScg → ACES 2.0 SDR-video / sRGB display image was inspected: bicycle frame, wheels/spokes and tree-bark detail were recognizable, without the obsolete-view large-card breakup. Fine translucency/texture and colour differences from a dedicated rasterizer remain. The scan and render are not included in the release.
+
+A 3-million retained update with the optimized path took **197.02 s** (107.88 geometry, 64.63 colour) and emitted 674,890 cards. Earlier updates took 413.95–461.53 s. Camera framing changed during the session, so these observations are **not a controlled speedup ratio**. The old baseline final render was already recognizable after waiting for preparation; this patch must not be described as fixing a parser that had rejected the file.
+
+An isolated **80,000-splat native test** changed the camera during preparation: one obsolete pass stopped, the latest camera key became ready, and read time remained effectively zero because the cloud was reused. Native tag checks verified that compact cards and subsequent colour/opacity edits map to the correct source records. A parent disabled compaction and preserved per-source indexing. An unchanged reload of the full user scan reused the exact cloud, spatial arrays, colours and mesh template. The user's camera was unchanged; the final editable scene was saved separately. The full MoGraph animation suite was not rerendered in this patch.
+
+The real source's old framing bounds were dominated by a distant environment shell. The new bounded analysis selected a central region for framing only, and native camera creation from that report was checked in an isolated document. This is an overview heuristic, not a reconstruction of the website's authored camera or a guarantee of correct subject framing/orientation. No source points are removed by it.
+
+The modules/callbacks were refreshed in the running application; a cold restart was not repeated. IPR can still display previous-view cards while a real camera change is preparing. Wait for Ready at the intended camera before judging final import quality. Large sources still take minutes; the cap is finite, and Redshift cards do not promise pixel-identical native Gaussian compositing.
+
+Private diagnostic source: [Where it belongs by Muhammad Ichsan](https://superspl.at/scene/6ca913aa), whose bundled notice specifies CC BY-NC-SA 4.0. No source scan or derivative image is distributed here.
+
 ## 0.7.0 automatic import framing
 
 **214 portable tests pass on Python 3.10 and 3.12.** Added checks cover scales from 1e-6 to 1e6, portrait/square/wide aspect ratios, off-origin geometry, floaters, thin/flat bounds, camera ownership and user overrides, source-matched AI metadata, changed-limit summary refresh, cancellation of bounded analysis, and reuse of a parsed cloud between analysis and final-view preparation.

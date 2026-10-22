@@ -36,7 +36,8 @@ def preparation_keys(source_key, values, camera, has_sh, color_config):
         spatial_camera = (stable_camera, values.get('pixel_variance', 0.),
                           tuple(sorted((key, view_key(value)) for key, value in projection.items())))
     spatial = (source_key, tuple(values[k] for k in
-        ('scale', 'splat_scale', 'flip_y', 'camera_facing', 'smoothing')), spatial_camera)
+        ('scale', 'splat_scale', 'flip_y', 'camera_facing', 'smoothing')) +
+        (bool(values.get('compact_cards', False)),), spatial_camera)
     degree = effective_degree(values, has_sh)
     color_camera = stable_camera if degree else None
     view_values = (values['scale'], values['flip_y'], degree, values['sh_strength']) if degree else (None, None, 0, 0.)
@@ -77,6 +78,8 @@ class Preparation:
         self.status = ('Starting scan preparation', 0.)
         self.started = time.perf_counter()
         self.timings = {}
+        self.phase = 'reading'
+        self.analysis = None
         self.thread = threading.Thread(target=self.run, name='Argentum scan preparation', daemon=True)
 
     def check(self):
@@ -138,6 +141,11 @@ class Preparation:
             if request.get('analyse_only'):
                 self.result = dict(cloud=cloud, analysis=analysis, analyse_only=True)
                 return
+            # A camera change may cancel preparation after this checkpoint,
+            # without discarding the validated source or reading it twice.
+            self.cloud = cloud
+            self.analysis = analysis
+            self.phase = 'preparing'
             start = time.perf_counter()
             spatial = self.spatial
             bounds = self.bounds

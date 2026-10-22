@@ -218,6 +218,8 @@ class FakeWorker:
         self.timings = {}
         self.status = ("Preparing", .5)
         self.started = False
+        self.phase = 'reading'
+        self.analysis = None
 
     def start(self):
         self.started = True
@@ -501,7 +503,7 @@ class InteractiveSchedulingTests(unittest.TestCase):
         self.op.camera = latest
         data = dict(cloud=self.instance.cloud, spatial=self.instance.spatial,
                     colors=self.instance.colors, bounds=self.instance.bounds)
-        self.instance.publish_scan(job, object(), data)
+        self.instance.publish_scan(job, types.SimpleNamespace(GetPolygonCount=lambda:1), data)
         self.assertEqual(self.instance.ready_request, computed_key)
         self.assertNotEqual(self.instance.ready_request, self.instance.request_snapshot()["key"])
         self.assertEqual(self.instance.queued_request["key"], self.instance.request_snapshot()["key"])
@@ -514,7 +516,7 @@ class InteractiveSchedulingTests(unittest.TestCase):
         data = dict(cloud=types.SimpleNamespace(metadata={"sh_degree": 0}, splats=[object()], total_count=1),
             spatial=([(0., 0., 0.)], [(1., 0., 0.)], [(0., 1., 0.)], [(0., 0., 1.)]),
             colors=[(1., .5, .1)], bounds=[(0., 1.)] * 3)
-        self.instance.publish_scan(job, object(), data)
+        self.instance.publish_scan(job, types.SimpleNamespace(GetPolygonCount=lambda:1), data)
         self.assertEqual(self.instance.ready_request, self.instance.request_snapshot()["key"])
         self.assertIsNone(self.instance.queued_request)
         self.assertIsNone(self.instance.job)
@@ -533,12 +535,67 @@ class InteractiveSchedulingTests(unittest.TestCase):
         self.assertEqual(job["request"]["values"]["projection"]["focal_x"], 1500.)
         data = dict(cloud=self.instance.cloud, spatial=self.instance.spatial,
                     colors=self.instance.colors, bounds=self.instance.bounds)
-        self.instance.publish_scan(job, object(), data)
+        self.instance.publish_scan(job, types.SimpleNamespace(GetPolygonCount=lambda:1), data)
         self.assertEqual(self.instance.ready_request, computed_key)
         current = self.instance.request_snapshot()
         self.assertNotEqual(self.instance.ready_request[0], current["spatial_key"])
         self.assertEqual(self.instance.color_key, current["color_key"])
         self.assertEqual(self.instance.queued_request["key"], current["key"])
+
+    def test_settled_camera_cancels_only_arithmetic_and_reuses_source(self):
+        self.install_ready_cloud()
+        self.op.camera=CAMERA_B
+        self.instance.start_scan()
+        job=self.instance.job;old=job['worker']
+        old.phase='preparing';old.analysis={'count':1}
+        cloud=old.cloud
+        self.op.camera=(250.,80.,-300.)
+        self.instance.poll_scan()
+        self.assertFalse(old.cancelled.is_set())
+        job['view_changed_at']-=1.
+        self.instance.poll_scan()
+        self.assertTrue(old.cancelled.is_set())
+        old.error=loading.Cancelled();old.done.set()
+        self.instance.poll_scan()
+        new=job['worker']
+        self.assertIsNot(new,old)
+        self.assertIs(new.cloud,cloud)
+        self.assertEqual(new.request['camera'],self.op.camera)
+        self.assertIs(new.request['analysis'],old.analysis)
+        self.assertTrue(new.started)
+        self.assertEqual(job['view_restarts'],1)
+        self.assertNotEqual(self.instance.ready_request,job['request']['key'])
+
+    def test_completed_obsolete_view_is_not_assembled_or_published(self):
+        self.install_ready_cloud()
+        self.op.camera=CAMERA_B
+        self.instance.start_scan()
+        job=self.instance.job;old=job['worker']
+        old.result=dict(cloud=old.cloud,analysis={},spatial=self.instance.spatial,
+                        colors=self.instance.colors,bounds=self.instance.bounds)
+        old.done.set()
+        self.instance.assemble_scan=Mock(side_effect=AssertionError('obsolete view'))
+        self.op.camera=(250.,80.,-300.)
+        self.instance.poll_scan()
+        job['view_changed_at']-=1.
+        self.instance.poll_scan()
+        self.instance.assemble_scan.assert_not_called()
+        self.assertIsNot(job['worker'],old)
+        self.assertEqual(job['request']['camera'],self.op.camera)
+
+    def test_returning_to_original_view_resets_settling_timer(self):
+        self.install_ready_cloud()
+        self.op.camera=CAMERA_B
+        self.instance.start_scan()
+        job=self.instance.job;old=job['worker'];old.phase='preparing'
+        self.op.camera=(250.,80.,-300.)
+        self.instance.poll_scan()
+        self.op.camera=CAMERA_B
+        self.instance.poll_scan()
+        self.assertNotIn('view_changed_at',job)
+        self.op.camera=(250.,80.,-300.)
+        self.instance.poll_scan()
+        self.assertFalse(old.cancelled.is_set())
 
 
 if __name__ == "__main__":

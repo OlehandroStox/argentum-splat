@@ -123,7 +123,7 @@ def frame_scan(op, report, automatic=False):
         op[I.IMPORT_CAMERA_STATE]=camera_state(camera)
         report['framing']=(
             'AI source view fitted to output aspect.' if source_camera else
-            'Overview fitted to source bounds; orientation follows the current view.')
+            'Frame fitted to '+report.get('frame_focus','overview')+'; orientation follows the current view.')
         op[I.SOURCE_INFO]=import_analysis.summary(report,scale)+'\n'+report['framing']
     finally:
         doc.EndUndo()

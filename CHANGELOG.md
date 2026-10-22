@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.7.1 — Large-scan retention and latest-view preparation
+
+- Raise default/maximum retention from 3 to 4 million splats; preserve existing saved values.
+- Omit zero-area projected cards from standalone native meshes, retaining full source arrays. Disable compaction under parents to preserve MoGraph indexing.
+- Selectively decode packed PLY geometry, colour and opacity attributes instead of expanding unrelated SH/rotation fields each pass.
+- Retarget obsolete camera work after a settling interval, without restarting file reads or publishing the obsolete view as Ready. Keep cancellation and the prior completed cache.
+- Frame the central region when a distant environment shell dominates the initial bounds. Preserve existing cameras and all background records.
+- Add regression coverage for selective decoding across SH degrees, endian/type/property layouts, sparse card mapping, hierarchy invalidation, environment tails and latest-view restarts.
+- Redshift remains a card approximation. IPR can show the previous view while preparation is running; authored website cameras/post effects and arbitrary subject orientation are not inferred.
+
 ## 0.7.0 — Automatic first view and source diagnostics
 
 - Add Auto Frame in Empty Scene, enabled for new objects. Fit small/large source bounds with size-relative near clipping, output-aspect support, robust floater handling and matching AI source-camera metadata.

@@ -3,7 +3,7 @@
 <h1 align="center">Argentum Splat</h1>
 <p align="center"><strong>Images to 3D Gaussian splats. Inside Cinema 4D.</strong><br>Free, open-source integration for Cinema 4D 2027 and Redshift on Windows.</p>
 <p align="center">
-  <a href="https://github.com/OlehandroStox/argentum-splat/releases/download/v0.7.0/ArgentumSplat-0.7.0-C4D2027-Windows.zip">Download 0.7.0</a> ·
+  <a href="https://github.com/OlehandroStox/argentum-splat/releases/download/v0.7.1/ArgentumSplat-0.7.1-C4D2027-Windows.zip">Download 0.7.1</a> ·
   <a href="#install">Install</a> ·
   <a href="docs/controls.md">Controls</a> ·
   <a href="README.ru.md">Русский</a> ·
@@ -18,28 +18,30 @@
 
 Generate a static 3D Gaussian model from one image with **local TripoSplat inference**, or load an existing Gaussian scan. Adjust its appearance, render it with Redshift, and use Cinema 4D deformers and MoGraph.
 
-> **Preview release:** version 0.7.0 uses development plugin IDs `1000007–1000009`, not registered permanent Maxon IDs. They can conflict with another plugin using those IDs. Test in a separate C4D preferences folder before production use. [Details and compatibility](docs/installation.md#plugin-ids).
+> **Preview release:** version 0.7.1 uses development plugin IDs `1000007–1000009`, not registered permanent Maxon IDs. They can conflict with another plugin using those IDs. Test in a separate C4D preferences folder before production use. [Details and compatibility](docs/installation.md#plugin-ids).
 
-## Current release: 0.7.0
+## Current release: 0.7.1
 
-**[Download the Windows ZIP](https://github.com/OlehandroStox/argentum-splat/releases/download/v0.7.0/ArgentumSplat-0.7.0-C4D2027-Windows.zip)** · [Release notes](https://github.com/OlehandroStox/argentum-splat/releases/tag/v0.7.0)
+**[Download the Windows ZIP](https://github.com/OlehandroStox/argentum-splat/releases/download/v0.7.1/ArgentumSplat-0.7.1-C4D2027-Windows.zip)** · [Release notes](https://github.com/OlehandroStox/argentum-splat/releases/tag/v0.7.1)
 
+- **Less work on large scans:** build native geometry only for nonzero projected cards of standalone objects, retaining all imported source records. Hierarchies keep stable per-source indexing for MoGraph. Decode only the attributes needed by each pass.
+- **Latest camera wins:** after a short settling interval, stop obsolete view arithmetic and reuse the parsed scan for the latest view. Do not publish an obsolete view as the new ready model. Large updates are still not instantaneous.
 - **Automatic first view:** in an otherwise empty scene, fit an editable camera to a small model or large scan. Reuse matching AI source-camera metadata when available. Existing scene cameras and hand-edited import cameras stay unchanged.
 - **Frame Loaded Scan:** create a separate fitted camera on demand. Source Summary reports loaded/source counts, SH data, opacity filtering and import-limit sampling.
 - **Large-scene projection:** behind-camera splats collapse safely, screen-space bounds prevent near-camera background streaks, and Pixel Footprint 0 retains perspective projection.
 - **Automatic Redshift preparation:** new objects prepare transparency depth and sampling once per new source, with an opt-out checkbox. Later camera/LOOK edits preserve manual render settings.
-- **Quality by default:** new objects retain up to 3 million splats at a 1/255 opacity threshold, with captured-colour lighting, full available SH and perspective filtering. Existing scene values stay intact.
+- **Quality by default:** new objects retain up to 4 million splats at a 1/255 opacity threshold, with captured-colour lighting, full available SH and perspective filtering. Existing scene values stay intact.
 - **Quiet updates:** camera and LOOK changes reuse loaded data and update in the background; initial loads and explicit reloads retain progress and Cancel.
-- **Source Fidelity:** full available SH, up to 3 million splats, unlit captured colour and perspective pixel filtering for thin details. This remains a Redshift card approximation.
+- **Source Fidelity:** full available SH, up to 4 million splats, unlit captured colour and perspective pixel filtering for thin details. This remains a Redshift card approximation.
 - **Lower Python memory:** binary Gaussian PLY records stay packed when Maximum Splats exceeds 262,144; native plugin preparation uses compact float64 geometry and colour buffers.
 - **Automatic setup:** run `Install.cmd` to install the plugin, private Python, extra-format converter and AI dependencies. Ready components are reused on repeat runs.
 - **Responsive SCAN loading:** this release includes background preparation, a progress window with Cancel, and staged geometry assembly. The previous complete model stays visible until its replacement is ready.
 - **Less repeated work:** LOOK weight edits reuse geometry. With Camera-Facing Cards off, camera movement reuses spatial data and updates SH colours as needed; moving lights does not reload the source file.
 - **Checked for motion design:** native Fracture + Plain Effector and Bend were tested across 13 frames, alongside camera/light changes and Redshift previews.
 
-Validated with **214 portable tests on Python 3.10 and 3.12**, plus native cache/update checks in Cinema 4D 2027. Separate fixtures measured about **88% less retained Python source-cloud memory** and **82.8% less retained prepared-buffer memory**; these are not whole-process RAM savings or real-time guarantees. Earlier installation checks include real image-to-3D generation in a fresh Python 3.12 environment. Large scans still take time to load; Camera-Facing Cards intentionally rebuild orientation. See the [validation scope](docs/validation.md) for test conditions and limits.
+Validated with **222 portable tests on Python 3.10 and 3.12**, plus native cache/update checks in Cinema 4D 2027. Separate fixtures measured about **88% less retained Python source-cloud memory** and **82.8% less retained prepared-buffer memory**; these are not whole-process RAM savings or real-time guarantees. Earlier installation checks include real image-to-3D generation in a fresh Python 3.12 environment. Large scans still take time to load; Camera-Facing Cards intentionally rebuild orientation. See the [validation scope](docs/validation.md) for test conditions and limits.
 
-For the tested **`Raspberry.sog`** (approximately 2.37 million splats), the 3-million limit keeps all **2,309,943** splats passing the 1/255 opacity threshold: **97.4% of the source**, without additional reservoir sampling. The remaining splats are opacity-filtered. Larger files can still be sampled, and the Redshift card result is not guaranteed to match a native Gaussian renderer exactly.
+For the tested **`Raspberry.sog`** (approximately 2.37 million splats), the 4-million limit keeps all **2,309,943** splats passing the 1/255 opacity threshold: **97.4% of the source**, without additional reservoir sampling. The remaining splats are opacity-filtered. Larger files can still be sampled, and the Redshift card result is not guaranteed to match a native Gaussian renderer exactly.
 
 ## See the result
 
@@ -68,7 +70,7 @@ Your media stays local. Initial setup downloads dependencies and model weights; 
 
 ## Install
 
-1. Download **[ArgentumSplat-0.7.0-C4D2027-Windows.zip](https://github.com/OlehandroStox/argentum-splat/releases/download/v0.7.0/ArgentumSplat-0.7.0-C4D2027-Windows.zip)**. This is the installer package; GitHub's automatic “Source code” archive is intended for development.
+1. Download **[ArgentumSplat-0.7.1-C4D2027-Windows.zip](https://github.com/OlehandroStox/argentum-splat/releases/download/v0.7.1/ArgentumSplat-0.7.1-C4D2027-Windows.zip)**. This is the installer package; GitHub's automatic “Source code” archive is intended for development.
 2. Extract the ZIP, close Cinema 4D and run **`ArgentumSplat/Install.cmd`**. It installs the plugin, extra-format converter, private Python runtime and AI dependencies automatically. If several C4D preferences folders exist, choose the one you use.
 3. Wait for the setup summary, then start C4D → **Extensions → ArgentumSplat → Argentum Splat**.
 
@@ -118,7 +120,7 @@ Generation time depends on the GPU, image and settings. The house example used 6
 - Redshift uses a **Gaussian-card approximation**, not a custom native Gaussian rasterizer. Transparency, lighting and colour management affect the result.
 - Single-image TripoSplat predicts unseen sides and outputs **SH0**. It does not create a physical hair groom or glass cornea, and cannot match every high-detail multi-view scan.
 - Imported SH1–SH3 changes colour with the view; it is not ray-traced reflection. View-dependent evaluation happens before deformers/effectors.
-- Point Preview reduces viewport drawing work, **not the memory needed for the full render geometry**. Maximum Splats is capped at 3,000,000; native geometry and renderer memory can still be substantial despite compact Python buffers.
+- Point Preview reduces viewport drawing work, **not the memory needed for the full render geometry**. Maximum Splats is capped at 4,000,000; native geometry and renderer memory can still be substantial despite compact Python buffers.
 - Weight edits reuse geometry; colour correction still visits the loaded splats. Camera-Facing Cards rebuilds card orientation when the camera moves. Redshift must converge again after changes to the scene.
 - Repeated Redshift previews and render evaluation were checked; this release's live RS Render View start/stop cycle was not verified. These checks do not guarantee real-time performance on large scans or MoGraph rigs.
 

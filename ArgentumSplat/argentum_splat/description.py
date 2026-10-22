@@ -34,7 +34,7 @@ def describe(op, description, flags):
             container[c4d.DESC_SHORT_NAME] = labels[key]
             changed = True
         if key == I.MAX_SPLATS:
-            container[c4d.DESC_MAX] = 3000000
+            container[c4d.DESC_MAX] = 4000000
             changed = True
         if key == I.PIXEL_VARIANCE:
             container[c4d.DESC_STEP] = .025

@@ -32,7 +32,7 @@ def apply_detail_preset(op):
                 "subsurface_weight": op[I.SUBSURFACE],
             }, undo_mode=maxon.nodes.UNDO_MODE.ADD)
         op[I.STATUS] = (
-            "Source Fidelity: up to 3,000,000 splats, full SH, perspective pixel filtering, "
+            "Source Fidelity: up to 4,000,000 splats, full SH, perspective pixel filtering, "
             "captured colour (Emission 1 / Diffuse 0). Larger scans remain sampled. "
             "SH0 files contain fixed highlights, not dynamic glass reflections."
         )

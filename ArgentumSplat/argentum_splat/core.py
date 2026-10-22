@@ -28,7 +28,7 @@ MAX_RECORDS = 100_000_000
 MAX_LIST_LENGTH = 1_000_000
 MAX_HEADER_BYTES = 1_048_576
 MAX_LINE_BYTES = 1_048_576
-MAX_RETAINED = 3_000_000
+MAX_RETAINED = 4_000_000
 
 # struct code, integral lower bound, integral upper bound.
 _TYPES = {
@@ -65,6 +65,27 @@ class SplatCloud:
     splats: Sequence[Splat]
     total_count: int
     metadata: dict = field(default_factory=dict)
+
+
+def iter_attributes(cloud, kind, indices=None):
+    """Read only the attributes a pass uses from an already validated snapshot.
+
+    No file is reopened and no decoded per-record objects are retained. Generic
+    and non-PLY sources keep the ordinary path, with exactly the same values.
+    """
+    splats = cloud.splats
+    decoder = getattr(getattr(splats, '_decode', None), kind, None)
+    if decoder is not None:
+        records = splats._records if indices is None else (splats._records[i] for i in indices)
+        for record in records:
+            value = decoder(record)
+            if kind == 'appearance':
+                value = replace(value, input_color_space=splats._space)
+            yield value
+    else:
+        values = splats if indices is None else (splats[i] for i in indices)
+        for splat in values:
+            yield splat.opacity if kind == 'opacity' else splat
 
 
 @dataclass(frozen=True, slots=True, eq=False)
@@ -538,6 +559,40 @@ def _load_binary_gaussians(stream, vertex, endian, sampler, rest_count):
                      _scales((values[k] for k in scales_ix), 'PLY vertex'),
                      _quaternion(tuple(values[k] for k in rotation_ix), 'PLY vertex'),
                      tuple(values[k] for k in rest_ix), raw, 'linear')
+
+    def selected_reader(selected):
+        # Struct padding skips unused fields without materialising 45 SH
+        # coefficients for every geometry/opacity pass. Preserve arbitrary
+        # property order, scalar type, endianness and float64 source precision.
+        layout, retained = [], []
+        for prop in vertex.properties:
+            code = _TYPES[prop.value_type][0]
+            if prop.name in selected:
+                retained.append(prop.name)
+                layout.append(code)
+            else:
+                layout.append(str(struct.calcsize(endian+code))+'x')
+        unpack = struct.Struct(endian+''.join(layout)).unpack
+        order = tuple(retained.index(name) for name in selected)
+        def read(record):
+            values = unpack(record)
+            return tuple(values[i] for i in order)
+        return read
+
+    spatial_read = selected_reader(['x','y','z'] + ['scale_%d'%i for i in range(3)] + ['rot_%d'%i for i in range(4)])
+    color_read = selected_reader(['x','y','z'] + ['f_dc_%d'%i for i in range(3)] + ['f_rest_%d'%i for i in range(rest_count)])
+    alpha_read = selected_reader(['opacity'])
+    def spatial(record):
+        values = spatial_read(record)
+        return Splat(values[:3], (), 1., _scales(values[3:6], 'PLY vertex'),
+                     _quaternion(values[6:], 'PLY vertex'))
+    def appearance(record):
+        values = color_read(record)
+        raw = tuple(.5+SH_C0*v for v in values[3:6])
+        return Splat(values[:3], raw, 1., (), (), values[6:], raw)
+    decode.geometry = spatial
+    decode.appearance = appearance
+    decode.opacity = lambda record: _sigmoid(alpha_read(record)[0])
 
     return decode
 

@@ -19,16 +19,32 @@ def analyse(cloud, progress=None, limit=8192):
         positions.append(splat.position)
         radii.append(max(splat.scales))
     axes = [sorted(p[i] for p in positions) for i in range(3)]
+    overview_axes = axes
+    focus = 'overview'
+    if sample_count >= 200:
+        median = tuple(a[len(a)//2] for a in axes)
+        distances = [math.dist(p,median) for p in positions]
+        ordered = sorted(distances)
+        middle = ordered[len(ordered)//2]
+        # A substantial distant sky/background shell survives a 0.5% trim.
+        # Only in a strongly heavy-tailed scene, frame the central 75% instead.
+        # This affects the initial camera only; no source records are deleted.
+        if middle > 0 and ordered[int(.9*(sample_count-1))] > middle*8:
+            radius = ordered[int(.75*(sample_count-1))]
+            body = [p for p,d in zip(positions,distances) if d <= radius]
+            axes = [sorted(p[i] for p in body) for i in range(3)]
+            focus = 'central region (distant environment excluded from framing only)'
     # Ignore the outer 0.5% for framing only: floaters/sky envelopes must not
     # make the main scan invisible. No records are deleted or rescaled here.
-    trim = int(sample_count*.005) if sample_count >= 200 else 0
+    trim = int(len(axes[0])*.005) if len(axes[0]) >= 200 else 0
     low = [a[trim] for a in axes]
     high = [a[-trim-1] for a in axes]
     typical_radius = sorted(radii)[len(radii)//2]
     pad = max(typical_radius*3., max(b-a for a,b in zip(low,high))*.01, 1e-12)
     bounds = (tuple(v-pad for v in low), tuple(v+pad for v in high))
     eligible = cloud.metadata.get('eligible_count',cloud.total_count)
-    return dict(bounds=bounds, sample_count=sample_count, retained=count,
+    return dict(bounds=bounds, overview_bounds=(tuple(a[0] for a in overview_axes),tuple(a[-1] for a in overview_axes)),
+        frame_focus=focus, sample_count=sample_count, retained=count,
         total=cloud.total_count, eligible=eligible, sampled=count < eligible,
         filtered=cloud.total_count-eligible,
         sh_degree=cloud.metadata.get('effective_sh_degree',cloud.metadata.get('sh_degree',0)),

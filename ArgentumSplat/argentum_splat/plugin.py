@@ -62,6 +62,7 @@ def settings(op):
         "diffuse_weight": float(op[I.DIFFUSE]), "subsurface_weight": float(op[I.SUBSURFACE]),
         "pixel_variance": float(op[I.PIXEL_VARIANCE] or 0.),
         "compact_buffers": True,
+        "compact_cards": op.GetUp() is None,
     }
     if values['camera_facing']:
         values['projection'] = screen_projection(op)
@@ -187,7 +188,8 @@ def build_mesh(cloud, prepared, material, opacity=1., weights=None):
 
 
 def build_mesh_steps(cloud, prepared, material, opacity=1., weights=None):
-    count = len(cloud.splats)
+    indices = geometry.card_indices(prepared, (weights or {}).get('compact_cards', False))
+    count = len(indices)
     mesh = c4d.PolygonObject(count*4, count)
     mesh.SetName("Gaussian Cards")
     centers, us, vs, normals, colors = prepared
@@ -209,19 +211,19 @@ def build_mesh_steps(cloud, prepared, material, opacity=1., weights=None):
     alphas = []
     corners = dict(a=c4d.Vector(0,0,0), b=c4d.Vector(1,0,0),
                    c=c4d.Vector(1,1,0), d=c4d.Vector(0,1,0))
-    for n, splat in enumerate(cloud.splats):
+    for n, (source_index, alpha) in enumerate(zip(indices, core.iter_attributes(cloud, 'opacity', indices))):
         if n % 1024 == 0:
             yield ('Build Gaussian cards', n, count)
-        center, u, v = c4d.Vector(*centers[n]), c4d.Vector(*us[n]), c4d.Vector(*vs[n])
+        center, u, v = c4d.Vector(*centers[source_index]), c4d.Vector(*us[source_index]), c4d.Vector(*vs[source_index])
         points.extend((center-u-v, center+u-v, center+u+v, center-u+v))
         j = n*4
         mesh.SetPolygon(n, c4d.CPolygon(j,j+1,j+2,j+3))
         uv.SetSlow(n, **corners)
-        rgba = c4d.Vector4d(*colors[n], min(1., splat.opacity*opacity))
+        rgba = c4d.Vector4d(*colors[source_index], min(1., alpha*opacity))
         for k in range(4):
             c4d.VertexColorTag.SetPoint(color_data, None, None, j+k, rgba)
-        alphas.extend([min(1., max(0., splat.opacity*opacity))]*4)
-        normal = c4d.Vector(*normals[n])
+        alphas.extend([min(1., max(0., alpha*opacity))]*4)
+        normal = c4d.Vector(*normals[source_index])
         c4d.NormalTag.Set(normal_data,n,dict(a=normal,b=normal,c=normal,d=normal))
     mesh.SetAllPoints(points)
     del points
@@ -275,7 +277,8 @@ def update_mesh_steps(mesh, cloud, prepared, opacity, weights,
     Never pass op.GetCache() directly: it belongs to Cinema 4D and may be in use
     by other generators or an interactive renderer. The caller owns this mesh.
     """
-    count = len(cloud.splats)
+    indices = geometry.card_indices(prepared, weights.get('compact_cards', False))
+    count = len(indices)
     if mesh.GetPointCount() != count * 4 or mesh.GetPolygonCount() != count:
         raise ValueError("Cached Gaussian mesh does not match the source cloud.")
     tags = {tag.GetName(): tag for tag in mesh.GetTags()}
@@ -283,20 +286,20 @@ def update_mesh_steps(mesh, cloud, prepared, opacity, weights,
         tag = tags["SplatColor"]
         data = tag.GetDataAddressW()
         colors = prepared[4]
-        for index, splat in enumerate(cloud.splats):
+        for index, (source_index, alpha) in enumerate(zip(indices, core.iter_attributes(cloud, 'opacity', indices))):
             if index % 1024 == 0:
                 yield ('Update colour / opacity', index, count)
-            rgba = c4d.Vector4d(*colors[index], min(1., max(0., splat.opacity * opacity)))
+            rgba = c4d.Vector4d(*colors[source_index], min(1., max(0., alpha * opacity)))
             for corner in range(4):
                 c4d.VertexColorTag.SetPoint(data, None, None, 4 * index + corner, rgba)
         tag.SetDirty(c4d.DIRTYFLAGS_DATA)
         tag.Message(c4d.MSG_UPDATE)
     if update_opacity:
         values = []
-        for index, splat in enumerate(cloud.splats):
+        for index, alpha in enumerate(core.iter_attributes(cloud, 'opacity', indices)):
             if index % 2048 == 0:
                 yield ('Update opacity', index, count)
-            values.extend([min(1., max(0., splat.opacity * opacity))]*4)
+            values.extend([min(1., max(0., alpha * opacity))]*4)
         tag = tags["SplatOpacity"]
         tag.SetAllHighlevelData(values)
         tag.SetDirty(c4d.DIRTYFLAGS_DATA)
