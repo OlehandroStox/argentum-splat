@@ -46,7 +46,7 @@ if __name__ == "__main__":
             raise RuntimeError("Cannot load Argentum Splat icon.")
         result = c4d.plugins.RegisterObjectPlugin(id=I.OBJECT_ID,
             str="Argentum Splat",g=ArgentumObject,description="oargentumsplat",
-            info=c4d.OBJECT_GENERATOR|c4d.OBJECT_CALL_ADDEXECUTION,icon=icon)
+            info=c4d.OBJECT_GENERATOR|c4d.OBJECT_CALL_ADDEXECUTION,icon=icon,disklevel=1)
         result = c4d.plugins.RegisterCommandPlugin(id=I.COMMAND_ID,
             str="Argentum Splat - Image to 3D",info=c4d.PLUGINFLAG_HIDEPLUGINMENU,icon=icon,
             help="Create an image-to-Gaussian object",dat=ArgentumCommand()) and result

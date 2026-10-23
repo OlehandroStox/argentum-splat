@@ -50,6 +50,7 @@ AS_MAX_SPLATS "Maximum Splats (Reload)";
 AS_MIN_OPACITY "Minimum Opacity (Reload)";
 AS_OPACITY "Opacity Multiplier";
 AS_FLIP_Y "Flip Y Axis";
+AS_AUTO_SOG_ORIENTATION "Auto SOG Orientation (Y-down to Y-up)";
 AS_MATERIAL "Redshift Material";
 AS_MOGRAPH "Create MoGraph Fracture Rig";
 STATUS_GROUP "STATUS";

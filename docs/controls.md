@@ -108,6 +108,7 @@ The C4D plugin keeps binary Gaussian PLY source records packed when **Maximum Sp
 | Maximum Splats | Retain up to this many opacity-eligible splats; above the limit, take a deterministic uniform sample across the input file. Default and maximum 4,000,000; this retains existing splats rather than generating new ones. Loading/filter changes queue a new load after changes settle; Initialise / Reload starts it immediately. |
 | Minimum Opacity | Discard nearly transparent splats on load. Default 1/255 (about 0.00392157). Lower values retain fine details but may increase memory/render work. |
 | Opacity Multiplier | Scale the opacity of retained splats. |
+| Auto SOG Orientation | Enabled for new objects. Map conventional SOG Y-down coordinates to Cinema 4D Y-up before fitting the first camera; transform shape and view-dependent colour consistently. Saved pre-0.7.2 objects keep this disabled. Turn off for a source that was already reoriented. |
 | Flip Y Axis | Reflect Y along with the Gaussian covariance. AI results enable this to stand upright in C4D. |
 | Redshift Material | Editable node-material link. |
 | Create MoGraph Fracture Rig | Create a native Fracture in Explode Segments mode. Each card is a segment; add effectors to the Fracture. Point Preview is disabled for this rig. Existing object PSR tracks retain their coordinate system. |

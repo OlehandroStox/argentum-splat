@@ -48,6 +48,7 @@ def describe(op, description, flags):
         if changed:
             description.SetParameter(did, container, parent)
     controls = (
+        (I.AUTO_SOG_ORIENTATION, c4d.DTYPE_BOOL, 2005, 'Auto SOG Orientation (Y-down to Y-up)', 0),
         (I.AUTO_FRAME, c4d.DTYPE_BOOL, 2001, 'Auto Frame in Empty Scene', 0),
         (I.FRAME_SCAN, c4d.DTYPE_BUTTON, 2001, 'Frame Loaded Scan', 0),
         (I.SOURCE_INFO, c4d.DTYPE_STRING, 2006, 'Source Summary', 0),

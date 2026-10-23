@@ -3,7 +3,7 @@
 <h1 align="center">Argentum Splat</h1>
 <p align="center"><strong>Images to 3D Gaussian splats. Inside Cinema 4D.</strong><br>Free, open-source integration for Cinema 4D 2027 and Redshift on Windows.</p>
 <p align="center">
-  <a href="https://github.com/OlehandroStox/argentum-splat/releases/download/v0.7.1/ArgentumSplat-0.7.1-C4D2027-Windows.zip">Download 0.7.1</a> ·
+  <a href="https://github.com/OlehandroStox/argentum-splat/releases/download/v0.7.2/ArgentumSplat-0.7.2-C4D2027-Windows.zip">Download 0.7.2</a> ·
   <a href="#install">Install</a> ·
   <a href="docs/controls.md">Controls</a> ·
   <a href="README.ru.md">Русский</a> ·
@@ -18,12 +18,15 @@
 
 Generate a static 3D Gaussian model from one image with **local TripoSplat inference**, or load an existing Gaussian scan. Adjust its appearance, render it with Redshift, and use Cinema 4D deformers and MoGraph.
 
-> **Preview release:** version 0.7.1 uses development plugin IDs `1000007–1000009`, not registered permanent Maxon IDs. They can conflict with another plugin using those IDs. Test in a separate C4D preferences folder before production use. [Details and compatibility](docs/installation.md#plugin-ids).
+> **Preview release:** version 0.7.2 uses development plugin IDs `1000007–1000009`, not registered permanent Maxon IDs. They can conflict with another plugin using those IDs. Test in a separate C4D preferences folder before production use. [Details and compatibility](docs/installation.md#plugin-ids).
 
-## Current release: 0.7.1
+## Current release: 0.7.2
 
-**[Download the Windows ZIP](https://github.com/OlehandroStox/argentum-splat/releases/download/v0.7.1/ArgentumSplat-0.7.1-C4D2027-Windows.zip)** · [Release notes](https://github.com/OlehandroStox/argentum-splat/releases/tag/v0.7.1)
+**Known first-view limitation:** the five-file native test found that an interior church scan loads but its automatic exterior overview is unusable. The 4-million cap also reduces larger sources. Automatic framing is an overview helper, not a guarantee that every scan opens at its authored viewpoint. [Actual test results](docs/validation.md#072-five-real-sog-imports-with-untouched-model-defaults).
 
+**[Download the Windows ZIP](https://github.com/OlehandroStox/argentum-splat/releases/download/v0.7.2/ArgentumSplat-0.7.2-C4D2027-Windows.zip)** · [Release notes](https://github.com/OlehandroStox/argentum-splat/releases/tag/v0.7.2)
+
+- **SOG orientation:** new objects convert conventional Y-down SOG coordinates to Cinema 4D Y-up before framing. Saved older scenes retain their orientation; an Advanced override handles pre-oriented sources.
 - **Less work on large scans:** build native geometry only for nonzero projected cards of standalone objects, retaining all imported source records. Hierarchies keep stable per-source indexing for MoGraph. Decode only the attributes needed by each pass.
 - **Latest camera wins:** after a short settling interval, stop obsolete view arithmetic and reuse the parsed scan for the latest view. Do not publish an obsolete view as the new ready model. Large updates are still not instantaneous.
 - **Automatic first view:** in an otherwise empty scene, fit an editable camera to a small model or large scan. Reuse matching AI source-camera metadata when available. Existing scene cameras and hand-edited import cameras stay unchanged.
@@ -70,7 +73,7 @@ Your media stays local. Initial setup downloads dependencies and model weights; 
 
 ## Install
 
-1. Download **[ArgentumSplat-0.7.1-C4D2027-Windows.zip](https://github.com/OlehandroStox/argentum-splat/releases/download/v0.7.1/ArgentumSplat-0.7.1-C4D2027-Windows.zip)**. This is the installer package; GitHub's automatic “Source code” archive is intended for development.
+1. Download **[ArgentumSplat-0.7.2-C4D2027-Windows.zip](https://github.com/OlehandroStox/argentum-splat/releases/download/v0.7.2/ArgentumSplat-0.7.2-C4D2027-Windows.zip)**. This is the installer package; GitHub's automatic “Source code” archive is intended for development.
 2. Extract the ZIP, close Cinema 4D and run **`ArgentumSplat/Install.cmd`**. It installs the plugin, extra-format converter, private Python runtime and AI dependencies automatically. If several C4D preferences folders exist, choose the one you use.
 3. Wait for the setup summary, then start C4D → **Extensions → ArgentumSplat → Argentum Splat**.
 

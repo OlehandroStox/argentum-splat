@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.7.2 — SOG orientation and saved-scene compatibility
+
+- New objects map the conventional SOG Y-down frame to Cinema 4D Y-up automatically, including covariance and SH view directions. This prevents the initial camera from viewing cars, bowls and ground scans upside down.
+- Add Auto SOG Orientation in Advanced; Flip Y remains an additional manual override. Other file formats and image-generation orientation keep their previous behavior. Arbitrarily reoriented SOG files still need an explicit override.
+- Use a versioned scene marker to preserve pre-0.7.2 saved objects. Verify both old-scene migration and new-scene save/reopen in Cinema 4D 2027.
+- Retain the existing 4-million cap, source-fidelity settings, camera ownership and cache behavior. This correction does not reconstruct authored cameras or guarantee native Gaussian-renderer parity.
+
 ## 0.7.1 — Large-scan retention and latest-view preparation
 
 - Raise default/maximum retention from 3 to 4 million splats; preserve existing saved values.

@@ -8,6 +8,18 @@ SPLAT_EXTENSIONS = frozenset('.ply .splat .spz .sog .ksplat'.split())
 MAX_FRAME = 99999
 
 
+def coordinate_flip(path, flip_y=False, raw_spz=False, auto_sog=False):
+    """Map SOG's conventional Y-down frame to C4D's Y-up, left-handed frame.
+
+    The manual flip remains an additional override. Missing auto_sog on saved
+    pre-0.7.2 objects means False, retaining their existing geometry/cameras.
+    PLY and generated image assets keep their explicit orientation workflow.
+    """
+    suffix = Path(path).suffix.lower()
+    normalise = (suffix == '.spz' and not raw_spz) or (suffix == '.sog' and auto_sog)
+    return bool(flip_y) ^ bool(normalise)
+
+
 def classify(path, mode=0):
     suffix = Path(path).suffix.lower()
     if mode not in (0, 1):

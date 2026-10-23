@@ -49,10 +49,11 @@ def require_idle():
 
 
 def settings(op):
-    spz_normal = str(op[I.FILE] or "").lower().endswith(".spz") and not op[I.SPZ_RAW]
+    flip = input_source.coordinate_flip(str(op[I.FILE] or ""), op[I.FLIP_Y],
+                                       op[I.SPZ_RAW], op[I.AUTO_SOG_ORIENTATION])
     values = {
         "scale": float(op[I.SCALE]), "splat_scale": float(op[I.SPLAT_SCALE]),
-        "flip_y": bool(op[I.FLIP_Y]) ^ spz_normal, "camera_facing": bool(op[I.CAMERA_FACING]),
+        "flip_y": flip, "camera_facing": bool(op[I.CAMERA_FACING]),
         "smoothing": int(op[I.SMOOTHING]), "sh_degree": int(op[I.SH_DEGREE]),
         "sh_strength": float(op[I.SH_STRENGTH]), "gamma": float(op[I.GAMMA]),
         "contrast": float(op[I.CONTRAST]), "hue": float(op[I.HUE]),
@@ -370,6 +371,22 @@ class SplatObject(InteractiveScan, c4d.plugins.ObjectData):
         if self.job:
             PENDING.append((self,I.CANCEL))
             c4d.SpecialEventAdd(I.MESSAGE_ID)
+
+    def Read(self, op, hf, level):
+        # C4D merges saved containers over Init defaults. Without this explicit
+        # migration, old documents would unexpectedly gain the new Y flip.
+        if level < 1:
+            op[I.AUTO_SOG_ORIENTATION] = False
+            return True
+        return hf.ReadInt32() == 1
+
+    def Write(self, op, hf):
+        return hf.WriteInt32(1)
+
+    def CopyTo(self, dest, snode, dnode, flags, trn):
+        # Persistent parameters are in the host's automatically copied container.
+        # Transient meshes/workers intentionally start empty on a clone.
+        return True
 
     def invalidate(self):
         self.cloud = self.prepared = None

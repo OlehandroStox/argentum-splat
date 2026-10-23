@@ -1,5 +1,25 @@
 # Validation scope
 
+## 0.7.2 five real SOG imports with untouched model defaults
+
+**227 portable tests pass on Python 3.10 and 3.12.** Native validation used a cold restart of Cinema 4D 2027.0.0, Python 3.11.4, RTX 4070 12 GB and 32 GB system RAM. Each SOG was selected on a fresh object in a separate empty document. Output was 1280 × 720; LOOK, import cap, opacity, scale and generated cameras were not manually tuned. All five Redshift renders completed with result 0 and their actual OCIO display images were inspected.
+
+| Source | Retained / source splats | Preparation reported by plugin | Render |
+|---|---:|---:|---:|
+| porsche | 624,332 / 625,597 | 73.6 s | 42.6 s |
+| The Fruit Bowl | 748,470 / 750,322 | 87.5 s | 15.8 s |
+| Fungus (Chicken of the woods) | 657,340 / 660,490 | 76.4 s | 23.0 s |
+| Cobweb Scope — synthetic Gaussian splat | 4,000,000 / 5,890,142 | 493.0 s | 56.1 s |
+| Parish Church of Saint Maurice | 4,000,000 / 9,975,598 | 516.0 s | 20.2 s |
+
+The previous defaults displayed Porsche upside down and the underside of the fruit bowl and ground/fungus scan. The SOG coordinate correction produced recognizable, upright first views for these three models. Cobweb Scope and its fine threads were recognizable, but the 4-million cap retained only 67.9% of its source records. **The church failed the strict default-view visual test**: an exterior overview of the interior scan showed diffuse patches, and only 40.1% of its source records were retained. No manual camera correction was substituted for that failure. This release therefore **does not guarantee a useful first view for every scan**, especially interiors, and it does not preserve all detail above the import cap. Pixel-identical comparison with a native Gaussian rasterizer was not performed.
+
+The large files required about 8–9 minutes of preparation; these measurements must not be described as instant loading. The progress window remained present; the longest measured UI assembly slice for Cobweb was 1.20 s. Unchanged reloads of the fruit bowl, fungus, Cobweb and church reused the exact parsed cloud, spatial arrays, colours and mesh template without starting a job.
+
+Native save/reopen checks confirmed that pre-0.7.2 scenes retain Auto SOG Orientation off, while new scenes preserve the enabled setting. Existing Image/PLY and SPZ coordinate paths are unchanged. Full MoGraph animation and AI inference were not rerun in this patch.
+
+Sources were private local test inputs; scans, saved test scenes and derivative renders are **not distributed in this release**. Source credits: [porsche by VODKIN](https://superspl.at/scene/815d7ba0), [The Fruit Bowl by SuperDelphi](https://superspl.at/scene/d8ba72a6), [Fungus by Natural Ai App](https://superspl.at/scene/9ba34048), [Cobweb Scope by Dan Barash](https://superspl.at/scene/73614e89), and [Parish Church of Saint Maurice by Pavel Tanhäuser](https://superspl.at/scene/15a202e6). The church's bundled notice specifies CC BY-NC-ND 4.0; the other four specify CC BY 4.0.
+
 ## 0.7.1 large environments and obsolete camera work
 
 **222 portable tests pass on Python 3.10 and 3.12.** Added checks cover selective attribute decoding for all supported SH degrees, big/little endian and mixed float/double layouts; compact card selection and source order; hierarchy-driven invalidation; environment tails at multiple scales; camera settling, cancellation and restart without discarding the parsed source.
