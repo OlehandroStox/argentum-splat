@@ -627,7 +627,7 @@ class SplatObject(InteractiveScan, c4d.plugins.ObjectData):
             action = data["id"][0].id
             if action in (I.INITIALISE,I.GENERATE,I.CANCEL,I.SETUP,I.OPEN_OUTPUT,I.MOGRAPH,
                           I.DETAIL_PRESET,I.PREPARE_REDSHIFT,I.SOURCE_CAMERA,I.PREVIEW_SOURCE,
-                          I.SUPPORT_AUTHOR,I.FRAME_SCAN):
+                          I.SUPPORT_AUTHOR,I.HELP_SUPPORT,I.HELP_READER,I.FRAME_SCAN):
                 PENDING.append((self, action))
                 c4d.SpecialEventAdd(I.MESSAGE_ID)
         return True
@@ -657,6 +657,9 @@ class SplatObject(InteractiveScan, c4d.plugins.ObjectData):
         key = descid[0].id
         if key == I.IMPORT_QUALITY:
             value = import_budget.preset_for(op.GetDataInstance().GetInt32(I.MAX_SPLATS))
+        elif key == I.VERSION_INFO:
+            from . import __version__
+            value = 'Argentum Splat ' + __version__
         elif key == I.HELP_TEXT:
             from . import help_content
             value = help_content.text(op[I.HELP_LANGUAGE], op[I.HELP_TOPIC])
@@ -988,7 +991,11 @@ class Coordinator(c4d.plugins.MessageData):
             return True
         while PENDING:
             instance, action = PENDING.pop(0)
-            if action == I.SUPPORT_AUTHOR:
+            if action == I.HELP_READER:
+                from . import help_reader
+                help_reader.show(instance.op)
+                continue
+            if action in (I.SUPPORT_AUTHOR,I.HELP_SUPPORT):
                 # A browser action must not rebuild geometry or overwrite job status.
                 import webbrowser
                 url = 'https://boosty.to/olehandrostox/donate'

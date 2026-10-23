@@ -20,7 +20,8 @@ def describe(op, description, flags):
               I.CANCEL: 'Cancel Processing', 2000: 'INPUT — IMAGE / VIDEO',
               I.HELP_LANGUAGE: 'Language / Язык',
               I.HELP_TOPIC: 'Тема' if locale else 'Topic',
-              I.HELP_TEXT: 'Инструкция' if locale else 'Instructions'}
+              I.HELP_TEXT: '', I.VERSION_INFO: '',
+              I.HELP_READER: 'Открыть большое окно справки' if locale else 'Open Help Reader'}
     for container, did, parent in entries:
         if not did.GetDepth():
             continue
@@ -44,6 +45,19 @@ def describe(op, description, flags):
             changed = True
         if key == I.IMPORT_QUALITY:
             container[c4d.DESC_DEFAULT] = 3
+            changed = True
+        if key in (I.HELP_GROUP, I.HELP_BODY_GROUP, I.HELP_TEXT):
+            # The parent AND text must scale; text-only SCALE_V stays four lines.
+            container[c4d.DESC_GROUPSCALEV] = True
+            container[c4d.DESC_SCALEH] = True
+            changed = True
+        if key in (I.HELP_BODY_GROUP, I.HELP_SETTINGS_GROUP, I.HELP_FOOTER_GROUP):
+            container[c4d.DESC_NAME] = ''
+            container[c4d.DESC_SHORT_NAME] = ''
+            container[c4d.DESC_TITLEBAR] = False
+            changed = True
+        if key == I.HELP_TEXT:
+            container[c4d.DESC_FITH] = True
             changed = True
         if key in (I.HELP_TOPIC, I.HELP_LANGUAGE, I.INPUT_MODE):
             options = (help_content.TOPICS[locale] if key == I.HELP_TOPIC else

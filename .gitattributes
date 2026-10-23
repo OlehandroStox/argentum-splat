@@ -8,3 +8,6 @@
 *.png binary
 *.gif binary
 *.ply binary
+*.splat binary
+*.sog binary
+*.spz binary

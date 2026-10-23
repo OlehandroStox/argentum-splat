@@ -13,7 +13,7 @@ body:
     id: gpu
     attributes:
       label: GPU and input format / Видеокарта и формат
-      placeholder: RTX 4070 12 GB; PNG / PLY / MOV...
+      placeholder: GPU model and VRAM; PNG / PLY / MOV...
     validations:
       required: true
   - type: textarea

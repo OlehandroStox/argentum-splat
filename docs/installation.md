@@ -1,10 +1,10 @@
 # Installation & troubleshooting
 
-[README](../README.md) · [Русская быстрая установка](../README.ru.md#быстрая-установка)
+[README](../README.md) · [Русская быстрая установка](../README.ru.md#установка)
 
 ## Install the plugin
 
-Download **ArgentumSplat-0.8.0-C4D2027-Windows.zip** from [Releases](https://github.com/OlehandroStox/argentum-splat/releases), extract it, and close Cinema 4D. Run `ArgentumSplat/Install.cmd` from the extracted folder. Do not run it inside the ZIP viewer.
+Download **ArgentumSplat-0.8.1-C4D2027-Windows.zip** from [Releases](https://github.com/OlehandroStox/argentum-splat/releases), extract it, and close Cinema 4D. Run `ArgentumSplat/Install.cmd` from the extracted folder. Do not run it inside the ZIP viewer.
 
 The installer copies the plugin, sets up the extra-format converter, and prepares the private Python/AI environment and model weights. **You do not need to install Python or Node.js manually.** Choose your preferences folder if more than one C4D 2027 installation is found, then wait for the final summary. If no preferences folder exists yet, launch C4D 2027 once and close it before installing.
 
@@ -50,7 +50,7 @@ After a manual copy, restart C4D. Click **Set Up AI / Extra Formats** to run the
 
 ## Optional local AI
 
-Use an NVIDIA Ampere-or-newer GPU with BF16 CUDA support and a compatible NVIDIA driver. Setup checks GPU/driver availability before downloading the large AI packages. Driver installation remains the user's responsibility. A separate CUDA Toolkit installation is not needed: the PyTorch wheels supply their CUDA runtime libraries. The tested setup is Windows / C4D 2027.0.0 / RTX 4070 12 GB; requirements vary with scene and model size.
+Use an NVIDIA Ampere-or-newer GPU with BF16 CUDA support and a compatible NVIDIA driver. Setup checks GPU/driver availability before downloading the AI packages. A separate CUDA Toolkit installation is not needed. Memory requirements depend on the input and chosen quality.
 
 Setup uses a separate environment at `%LOCALAPPDATA%\ArgentumSplat\runtime`. A working existing Python 3.10–3.12 AI environment is retained. Otherwise, it downloads **CPython 3.12.15**, Astral `python-build-standalone` release **20261020**, with a pinned SHA-256 check, then creates the private environment. This is a third-party CPython build, not the Python Software Foundation's Windows installer. Its bundled licenses remain with the installed runtime. [Source and notices](../ArgentumSplat/backend/THIRD_PARTY_NOTICES.md).
 
@@ -81,7 +81,7 @@ Native Gaussian PLY, SPLAT and SPZ v2/v3 work without AI weights or the converte
 | SH sliders disabled | The file has no SH1–SH3 coefficients. Single-image TripoSplat results are SH0. |
 | Video/sequence fails | Preview the selected frame. Frame index starts at 0; sequences use a filename offset. Missing frames, unsupported codecs and corrupt media report errors in Status. |
 | SCAN load takes time | Progress covers reading, preparation and C4D assembly. First import validates all input records, even with Maximum Splats set lower. Cancel keeps the last complete model. An unchanged reload reuses prepared data. A first load of millions of records can still take a minute or longer. |
-| LOOK / orbit feels slow | Keep Point Preview on and Preview Points around 10,000. Surface cards (Camera-Facing off) reuse geometry when the camera moves; SH colour updates after motion settles. Weight edits reuse geometry; colour edits still visit loaded splats in the background. Redshift convergence takes additional time. Maximum Splats reduces full model memory; Preview Points affects only drawing. |
+| LOOK / orbit feels slow | Keep Point Preview on. New objects preview 50,000 points; lower this if editor drawing is slow. Surface cards (Camera-Facing off) reuse geometry when the camera moves; SH colour updates after motion settles. Weight edits reuse geometry; colour edits still visit loaded splats in the background. Redshift convergence takes additional time. Maximum Splats reduces full model memory; Preview Points affects only drawing. |
 | Out of memory | Close other GPU workloads, lower Gaussian Count for generation or Maximum Splats for import, and allow memory for both AI and C4D/Redshift. |
 | Cancel does not interrupt immediately | Scan calculations check cancellation between blocks; C4D assembly yields between batches. A native allocation/commit already running must finish first. Final render/export has its own C4D/Redshift cancellation controls. |
 | Estimated source camera unavailable | Keep `generation.json` next to its PLY. Older generations without camera metadata cannot use this feature. |

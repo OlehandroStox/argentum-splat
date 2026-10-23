@@ -1,2 +1,2 @@
 """Argentum Splat: independent image-to-Gaussian plugin for Cinema 4D."""
-__version__ = "0.8.0"
+__version__ = "0.8.1"

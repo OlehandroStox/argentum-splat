@@ -67,8 +67,14 @@ IMPORT_APPROVED = 1097
 HELP_LANGUAGE = 1098
 HELP_TOPIC = 1099
 HELP_TEXT = 1100  # virtual, bundled offline manual
+VERSION_INFO = 1101  # virtual, always the installed code version
+HELP_SUPPORT = 1102
+HELP_READER = 1103
 HELP_GROUP = 2007
 SCAN_TOOLS_GROUP = 2008
+HELP_BODY_GROUP = 2009
+HELP_SETTINGS_GROUP = 2010
+HELP_FOOTER_GROUP = 2011
 # Shared by new objects and the explicit Source Fidelity action. Import limits
 # retain source records; they do not increase the AI model's Gaussian count.
 SOURCE_FIDELITY = {

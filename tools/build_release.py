@@ -2,9 +2,10 @@
 from pathlib import Path
 import hashlib
 import zipfile
+import runpy
 
 ROOT = Path(__file__).resolve().parents[1]
-VERSION = '0.8.0'
+VERSION = runpy.run_path(str(ROOT / 'ArgentumSplat/argentum_splat/__init__.py'))['__version__']
 
 
 def main():
