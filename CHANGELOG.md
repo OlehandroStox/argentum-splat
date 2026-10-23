@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.8.2-dev — Automatic SOG views
+
+- Use full source retention by default, without the optional import-quality prompt; preserve saved/manual limits and memory checks.
+- Keep the first camera near the dense capture region when distant environment splats form a long spatial tail. This changes framing only.
+- Evaluate fine projected coverage at the SOG origin to select a capture-space view for suitable enclosed scans, then compare four horizontal directions to avoid close blurred surfaces; retain the subject overview otherwise.
+- Preserve existing scene cameras and explicit AI camera metadata.
+- Use the neutral OCIO view for a first SOG import into an empty scene with the default ACES view; preserve existing scenes, custom views, and subsequent manual colour choices.
+- Trim only shader-zero Gaussian tails and remap UVs with their support, reducing wasted Redshift transparency intersections without deleting visible source detail. Opacity edits update support as well.
+- Avoid decoding already validated compact native PLY records twice; retain full-source validation and effective SH detection.
+- Release large transient buffers when native objects are destroyed, including wrappers retained by undo/render events.
+
+### Validation and known limitations
+
+- Development prerelease: 249 automated tests pass. Native Cinema 4D/Redshift testing has reached eight of fifteen SOG fixtures; final-profile regression and the remaining fixtures are not complete.
+- Closely spaced or coplanar transparent Gaussian cards can lose layers in Redshift, producing bright patches in dense scenes. This remains unresolved; the rendering backend is still Gaussian cards, not a dedicated Gaussian rasterizer.
+- Experimental depth offsets, alternative colour-compositing profiles and increased transparency depth are not included in this release.
+
 ## 0.8.1 — Clearer Help and documentation
 
 - Expand Help's reading area and add an optional resizable reader window.

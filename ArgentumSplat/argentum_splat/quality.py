@@ -4,7 +4,7 @@ import math
 from pathlib import Path
 import c4d
 import maxon
-from . import ids as I, assets, materials
+from . import ids as I, assets, materials, scene_setup
 
 
 def apply_detail_preset(op):
@@ -110,8 +110,40 @@ def auto_prepare_redshift(op, source_key):
     doc = op.GetDocument()
     if not doc or doc.GetActiveRenderData()[c4d.RDATA_RENDERENGINE] != 1036219:
         return False
+    # SOG stores captured display colours. A second photographic tone curve
+    # changes its highlights and contrast. Set a neutral view only on the very
+    # first import into an otherwise empty scene, with the default ACES view.
+    # Saved projects and later user view changes must never be reset.
+    if not op[I.AUTO_PREPARED_SOURCE]:
+        prepare_source_view(op, source_key)
     # Persist in the same undo step so later manual settings survive reopen.
     prepare_redshift(op, source_marker=marker)
+    return True
+
+
+def prepare_source_view(op, source_key):
+    if Path(source_key[0]).suffix.lower() != '.sog' or not scene_setup.automatic_available(op):
+        return False
+    doc = op.GetDocument()
+    if doc[c4d.DOCUMENT_COLOR_MANAGEMENT] != c4d.DOCUMENT_COLOR_MANAGEMENT_OCIO:
+        return False
+    try:
+        names = doc.GetOcioViewTransformNames()
+        current = doc.GetActiveOcioColorSpacesNames()[2]
+    except AttributeError:
+        return False
+    if current not in ('ACES 2.0 SDR-video', 'ACES 1.0 SDR-video'):
+        return False
+    target = next((i for i, name in enumerate(names) if name == 'Un-tone-mapped'), None)
+    if target is None:
+        return False
+    doc.StartUndo()
+    try:
+        doc.AddUndo(c4d.UNDOTYPE_CHANGE, doc)
+        doc[c4d.DOCUMENT_OCIO_VIEW_TRANSFORM] = target
+    finally:
+        doc.EndUndo()
+    c4d.EventAdd()
     return True
 
 

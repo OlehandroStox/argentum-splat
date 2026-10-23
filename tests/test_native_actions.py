@@ -139,23 +139,48 @@ class NativeDecisionTests(unittest.TestCase):
         op = Op({I.AUTO_REDSHIFT: True, I.AUTO_PREPARED_SOURCE: ''})
         op.doc = SimpleNamespace(GetActiveRenderData=lambda: {1:1036219})
         calls = []
+        source_view = Mock()
         def prepare(op, source_marker=None):
             calls.append(source_marker)
             op[I.AUTO_PREPARED_SOURCE] = source_marker
         auto = function('quality.py','auto_prepare_redshift',dict(
-            c4d=SimpleNamespace(RDATA_RENDERENGINE=1), I=I, json=json, prepare_redshift=prepare))
+            c4d=SimpleNamespace(RDATA_RENDERENGINE=1), I=I, json=json, prepare_redshift=prepare,
+            prepare_source_view=source_view))
         source = ('city.sog',100,5000,3000000,.0039,False)
         self.assertTrue(auto(op,source))
         self.assertFalse(auto(op,source))
         self.assertFalse(auto(op,source[:3]+(1000,.1,True)))
         self.assertTrue(auto(op,('other.sog',)+source[1:]))
         self.assertEqual(len(calls),2)
+        source_view.assert_called_once_with(op,source)
         op[I.AUTO_REDSHIFT] = False
         self.assertFalse(auto(op,source))
         op[I.AUTO_REDSHIFT] = True
         op.doc.GetActiveRenderData = lambda: {1:0}
         self.assertFalse(auto(op,source))
         self.assertEqual(len(calls),2)
+
+    def test_neutral_sog_view_resolves_names_and_preserves_user_scenes(self):
+        host=SimpleNamespace(DOCUMENT_COLOR_MANAGEMENT=1,DOCUMENT_COLOR_MANAGEMENT_OCIO=2,
+            DOCUMENT_OCIO_VIEW_TRANSFORM=3,UNDOTYPE_CHANGE=4,EventAdd=Mock())
+        class Doc(dict):
+            StartUndo=Mock();EndUndo=Mock();AddUndo=Mock()
+            def GetOcioViewTransformNames(self):return ['Raw','Un-tone-mapped','ACES 2.0 SDR-video']
+            def GetActiveOcioColorSpacesNames(self):return ('ACEScg','sRGB',self.current,'')
+        doc=Doc({1:2,3:2});doc.current='ACES 2.0 SDR-video'
+        op=Op();op.doc=doc
+        available=Mock(return_value=True)
+        action=function('quality.py','prepare_source_view',dict(c4d=host,Path=Path,
+            scene_setup=SimpleNamespace(automatic_available=available)))
+        self.assertTrue(action(op,('scene.sog',)))
+        self.assertEqual(doc[3],1)
+        for current,empty,mode,source in [('Raw',True,2,'scene.sog'),
+                ('ACES 2.0 SDR-video',False,2,'scene.sog'),
+                ('ACES 2.0 SDR-video',True,0,'scene.sog'),
+                ('ACES 2.0 SDR-video',True,2,'scene.ply')]:
+            doc.current=current;doc[1]=mode;doc[3]=2;available.return_value=empty
+            self.assertFalse(action(op,(source,)))
+            self.assertEqual(doc[3],2)
 
 
 if __name__ == '__main__':

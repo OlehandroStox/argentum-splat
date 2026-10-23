@@ -39,6 +39,8 @@ class DefaultFidelityTests(unittest.TestCase):
 
     def test_new_objects_use_captured_colour_and_valid_projection(self):
         op = self.new_object()
+        self.assertEqual(op[I.MAX_SPLATS], 0)
+        self.assertFalse(op[I.ASK_LARGE_IMPORT])
         self.assertEqual([op[k] for k in (I.EMISSION, I.DIFFUSE, I.SUBSURFACE)],
                          [1., 0., 0.])
         self.assertTrue(op[I.CAMERA_FACING])

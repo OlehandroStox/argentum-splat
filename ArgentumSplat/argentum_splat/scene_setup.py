@@ -1,6 +1,7 @@
 """Safe initial framing. Existing scene cameras and hand-edited views win."""
 import json
 import math
+from pathlib import Path
 import c4d
 from . import ids as I, import_analysis, loading
 
@@ -74,6 +75,21 @@ def frame_scan(op, report, automatic=False):
     rd=doc.GetActiveRenderData()
     aspect=max(1.,float(rd[c4d.RDATA_XRES]))*float(rd[c4d.RDATA_PIXELASPECT] or 1.)/max(1.,float(rd[c4d.RDATA_YRES]))
     fit=import_analysis.fit_camera(points,xyz(view.v1),up,forward,fov,aspect)
+    capture_view=False
+    hint=report.get('capture_view',{})
+    # Only normalized SOG has a known source convention here. Existing scene
+    # cameras are protected by automatic_available; explicit AI metadata wins.
+    if (not source_camera and hint.get('available') and
+            Path(str(op[I.FILE] or '')).suffix.lower()=='.sog' and op[I.AUTO_SOG_ORIENTATION]):
+        eye,target=point((0.,0.,0.)),point(hint.get('forward',(0.,0.,1.)))
+        source_up=c4d.Vector(0.,1. if flip else -1.,0.)
+        f=(target-eye).GetNormalized()
+        r=mg.MulV(source_up).Cross(f).GetNormalized()
+        u=f.Cross(r).GetNormalized()
+        fov=2.*math.atan(math.tan(math.radians(30.))*aspect)
+        fit.update(eye=xyz(eye),right=xyz(r),up=xyz(u),forward=xyz(f),
+                   near=hint['near']*scale)
+        capture_view=True
     # The inferred AI source pose gives a better starting view than a generic
     # box fit; widen the FOV for non-square output so the source stays visible.
     if source_camera:
@@ -123,6 +139,7 @@ def frame_scan(op, report, automatic=False):
         op[I.IMPORT_CAMERA_STATE]=camera_state(camera)
         report['framing']=(
             'AI source view fitted to output aspect.' if source_camera else
+            'Capture-space view: detailed environment surrounds the source origin.' if capture_view else
             'Frame fitted to '+report.get('frame_focus','overview')+'; orientation follows the current view.')
         op[I.SOURCE_INFO]=import_analysis.summary(report,scale)+'\n'+report['framing']
     finally:

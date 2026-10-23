@@ -53,13 +53,13 @@ Splat File: Gaussian PLY, SPLAT, SPZ, SOG or KSPLAT. Ordinary mesh/point-only PL
 Import Quality controls Maximum Splats, not SH colour:
 LOW: up to 250,000.
 MEDIUM: up to 1,000,000.
-HIGH (default): up to 4,000,000.
-MAX: all opacity-eligible source splats, if memory permits.
+HIGH: up to 4,000,000.
+MAX (default): all opacity-eligible source splats, if memory permits.
 CUSTOM: the exact limit entered in Advanced.
 
 Import Budget shows source count and approximate additional RAM, not VRAM. Large native card geometry can require many GB. A 9-million source can use MAX on suitable hardware; no hidden 4-million cap remains. MAX never silently becomes LOW.
 
-Ask for Large Files: show a non-blocking choice before loading a new source above 4 million splats. Cancel leaves the previous complete model. The choice is remembered for that source on this object.
+Ask for Large Files (off by default): show a non-blocking choice before loading a new source above 4 million splats. Cancel leaves the previous complete model. The choice is remembered for that source on this object.
 
 Lower presets take a deterministic sample across the source, which can lose fine detail. Minimum Opacity also removes faint splats. Status / Source Summary report retained and original counts. Even LOW must read and validate the source; loading is not instant.
 
@@ -81,9 +81,9 @@ These settings do not change how many source records are retained. Import Qualit
 
 """AUTOMATIC SETUP / MANUAL TOOLS
 
-Auto Prepare Redshift on Import: prepare transparency and sampling once for each new source. Leave on for easy first use. Later LOOK/camera changes do not repeatedly reset the render settings.
+Auto Prepare Redshift on Import: prepare transparency and sampling once for each new source. The first SOG import into an empty scene changes the default ACES view to Un-tone-mapped, preserving captured colours. Existing scenes, custom views, exposure and working colour space stay unchanged. Later LOOK/camera/reload changes preserve manual choices. Disable for full manual setup.
 
-Auto Frame in Empty Scene: fit a camera only when this is the sole scene object and no existing user camera blocks it. Existing scene content and manually edited cameras are preserved. This estimates a useful overview, not the author's original camera; interiors may need your own camera position.
+Auto Frame in Empty Scene: fit a camera only when this is the sole scene object and no existing user camera blocks it. Existing scene content and manually edited cameras are preserved. For SOG, detailed coverage around the source origin can select an interior view. Long background tails are excluded from framing only. Otherwise a subject overview is used. This estimates a starting view; camera metadata is not present in every source.
 
 The following buttons are in SCAN > Manual Tools (normally collapsed):
 
@@ -216,13 +216,13 @@ Splat File: Gaussian PLY, SPLAT, SPZ, SOG, KSPLAT. Обычный PLY с сет�
 Import Quality управляет Maximum Splats, а не цветом SH:
 LOW — до 250 000.
 MEDIUM — до 1 000 000.
-HIGH (по умолчанию) — до 4 000 000.
-MAX — все сплаты, прошедшие фильтр прозрачности, если хватает памяти.
+HIGH — до 4 000 000.
+MAX (по умолчанию) — все сплаты, прошедшие фильтр прозрачности, если хватает памяти.
 CUSTOM — точный лимит, введённый в Advanced.
 
 Import Budget показывает исходное количество и примерную дополнительную RAM, не VRAM. Геометрия карточек может занимать много ГБ. Для файла на 9 млн можно выбрать MAX на подходящем ПК: скрытого ограничения в 4 млн больше нет. MAX не переключается незаметно в LOW.
 
-Ask for Large Files: окно выбора перед новым файлом больше 4 млн сплатов. Оно не блокирует Cinema 4D; Cancel сохраняет предыдущую модель. Выбор запоминается для этого источника на объекте.
+Ask for Large Files (по умолчанию выключено): окно выбора перед новым файлом больше 4 млн сплатов. Оно не блокирует Cinema 4D; Cancel сохраняет предыдущую модель. Выбор запоминается для этого источника на объекте.
 
 Меньшие уровни берут воспроизводимую выборку по всему файлу, поэтому тонкие детали могут пропасть. Minimum Opacity дополнительно отбрасывает почти прозрачные сплаты. Status / Source Summary показывают исходное и оставшееся количество. Даже LOW читает и проверяет исходник.
 
@@ -244,9 +244,9 @@ Normal Smoothing Passes: сглаживание соседних нормале�
 
 """АВТОНАСТРОЙКА / РУЧНЫЕ ИНСТРУМЕНТЫ
 
-Auto Prepare Redshift on Import: один раз для нового источника настраивает прозрачность и сэмплинг. Для простого старта оставьте включённым. Последующие изменения LOOK/камеры не сбрасывают настройки рендера постоянно.
+Auto Prepare Redshift on Import: один раз для нового источника настраивает прозрачность и сэмплинг. При первом SOG-импорте в пустую сцену стандартный ACES view заменяется на Un-tone-mapped для сохранения захваченных цветов. Готовые сцены, нестандартные view, экспозиция и рабочее цветовое пространство сохраняются. Последующие LOOK/камера/Reload не сбрасывают ручные настройки. Для полностью ручной настройки отключите опцию.
 
-Auto Frame in Empty Scene: подбирает камеру, если splat — единственный объект сцены и нет пользовательской камеры. Существующая сцена и вручную изменённые камеры сохраняются. Это оценка общего вида, не исходная камера автора; для интерьера её иногда нужно поставить самостоятельно.
+Auto Frame in Empty Scene: подбирает камеру, если splat — единственный объект сцены и нет пользовательской камеры. Существующая сцена и вручную изменённые камеры сохраняются. Для SOG детальное заполнение кадра из начала координат позволяет выбрать внутренний вид. Дальний фон исключается только из расчёта кадрирования. В остальных случаях используется общий вид предмета. Это оценка начального ракурса: исходная камера не сохраняется в каждом файле.
 
 Следующие кнопки находятся в SCAN > Manual Tools (обычно свёрнуто):
 

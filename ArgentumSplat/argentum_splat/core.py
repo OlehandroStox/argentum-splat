@@ -268,12 +268,19 @@ class _Sampler:
         records = [] if compact else None
         effective_degree = 0
         declared_degree = metadata.get('sh_degree', 0)
+        validated_records = compact and getattr(decode, 'validated_records', False)
         for i, (_, splat) in enumerate(items):
             if i % 2048 == 0:
                 self.report('Decode colour', i, len(items))
             items[i] = None
             if compact:
                 records.append(splat)
+                # The binary Gaussian reader has already checked every scalar,
+                # exponent, quaternion and DC colour. Once the effective SH
+                # degree is known, retain its immutable bytes directly instead
+                # of decoding millions of validated records a second time.
+                if validated_records and effective_degree == declared_degree:
+                    continue
             if decode is not None:
                 splat = decode(splat)
             if effective_degree < declared_degree and splat.sh:
@@ -597,6 +604,7 @@ def _load_binary_gaussians(stream, vertex, endian, sampler, rest_count):
     decode.geometry = spatial
     decode.appearance = appearance
     decode.opacity = lambda record: _sigmoid(alpha_read(record)[0])
+    decode.validated_records = True
 
     return decode
 

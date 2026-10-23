@@ -49,6 +49,58 @@ class ImportAnalysisTests(unittest.TestCase):
             report=a.analyse(cloud(points))
             self.assertTrue(all(hi>lo for lo,hi in zip(*report['bounds'])))
 
+    def test_environment_tail_does_not_put_camera_outside_capture(self):
+        # Smoothly distributed detail with a long environment tail, not one
+        # removable outlier. q90/q50 < 8 while q95/q50 > 8.
+        points=[]
+        for i in range(1000):
+            t=(i+.5)/1000
+            radius=.2+t/(1-t)**1.2
+            angle=i*2.399963229728653
+            points.append((radius*math.cos(angle),.2*radius*math.sin(angle),radius*math.sin(angle)))
+        source=cloud(points)
+        before=list(source.splats)
+        report=a.analyse(source)
+        self.assertIn('dense central region',report['frame_focus'])
+        self.assertLess(max(report['bounds'][1]),2.)
+        self.assertEqual(before,source.splats)
+
+    def test_compact_subject_keeps_whole_overview(self):
+        source=cloud([(math.sin(i),math.cos(i),math.sin(i*.3)) for i in range(1000)])
+        report=a.analyse(source)
+        self.assertEqual(report['frame_focus'],'overview')
+        self.assertGreater(report['bounds'][1][0],.99)
+
+    def test_capture_view_requires_detail_across_frame_and_rejects_blobs(self):
+        splats=[core.Splat((x*.25,y*.25,10.),(.5,.5,.5),.8,
+            (.02,.02,.001),(1.,0.,0.,0.)) for x in range(-40,41) for y in range(-23,24)]
+        score=a.capture_view_score(splats,1_000_000)
+        self.assertTrue(score['available'])
+        self.assertGreater(score['detail_coverage'],.9)
+        blob=core.Splat((0.,0.,1.),(.5,.5,.5),1.,(5.,5.,5.),(1.,0.,0.,0.))
+        self.assertFalse(a.capture_view_score(splats+[blob]*50,1_000_000)['available'])
+
+    def test_capture_view_rejects_narrow_subject_and_empty_forward_view(self):
+        source=cloud([(0.,i*.01,10.) for i in range(-100,100)])
+        self.assertFalse(a.capture_view_score(source.splats,1_000_000)['available'])
+        self.assertFalse(a.capture_view_score(cloud([(0,0,-1)]).splats,1)['available'])
+
+    def test_environment_direction_prefers_detail_over_close_blurred_surface(self):
+        # Two dense, isotropic walls. The forward wall has additional coarse
+        # foreground splats; the equally detailed right wall is a better view.
+        front=[core.Splat((x*.25,y*.25,10.),(.5,)*3,.8,(.02,)*3,(1.,0.,0.,0.))
+            for x in range(-40,41) for y in range(-23,24)]
+        right=[core.Splat((10.,s.position[1],-s.position[0]),s.color,s.opacity,
+                         s.scales,s.rotation) for s in front]
+        blob=core.Splat((0.,0.,5.),(.5,)*3,.1,(.1,)*3,(1.,0.,0.,0.))
+        result=a.choose_capture_view(front+right+[blob]*30,2_000_000)
+        self.assertTrue(result['available'])
+        self.assertEqual(result['forward'],(1.,0.,0.))
+        original=a.capture_view_score(front,1_000_000)
+        rotated=a.capture_view_score(right,1_000_000,(1.,0.,0.))
+        for key in ('detail_coverage','coarse_fraction','near'):
+            self.assertAlmostEqual(original[key],rotated[key])
+
     def test_sampling_and_missing_gaussian_data_are_visible(self):
         source=cloud([(0,0,0)])
         source.total_count=1000

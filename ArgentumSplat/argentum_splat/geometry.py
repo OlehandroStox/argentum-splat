@@ -83,7 +83,7 @@ def mul(a, k):
 
 
 def dot(a, b):
-    return sum(a[i] * b[i] for i in range(3))
+    return a[0]*b[0] + a[1]*b[1] + a[2]*b[2]
 
 
 def cross(a, b):
@@ -523,6 +523,20 @@ def prepare(cloud, settings, camera=(0., 0., -500.)):
     """Compatibility wrapper for callers which need a complete preparation."""
     spatial = prepare_geometry(cloud, settings, camera)
     return spatial + (prepare_colors(cloud, settings, camera, spatial[0]),)
+
+
+def gaussian_support(opacity):
+    """Half-width relative to the 3-sigma card, excluding shader-zero tails.
+
+    The shader discards alpha below 1/255. Keeping those transparent polygons
+    still consumes Redshift's transparency depth. Shrink the card and its UV
+    interval together, so every visible Gaussian sample keeps its position and
+    opacity. A small outward tolerance protects the cutoff against roundoff.
+    """
+    alpha = min(1., max(0., float(opacity)))
+    if alpha <= 1./255.:
+        return 0.
+    return min(1., math.sqrt(2.*math.log(alpha*255.)/9.) + 1e-6)
 
 
 def card_indices(spatial, compact=False):

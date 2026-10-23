@@ -3,17 +3,18 @@
 Run these functions on Cinema 4D's main thread. The mesh contract is:
 
 * four unshared points per splat;
-* UVW coordinates spanning (0, 0) to (1, 1) on every quad;
+* UVW coordinates representing the retained part of the original 3-sigma quad;
 * ``SplatColor`` Vertex Color tag containing linear RGB;
 * ``SplatOpacity`` Vertex Map tag containing alpha in [0, 1];
 * ``SplatEmission``, ``SplatDiffuse`` and ``SplatSubsurface`` Vertex Maps
   containing the corresponding surface weights.
 
-Quad half-extents are three Gaussian standard deviations. The OSL expression
-therefore evaluates exp(-0.5 * ((3*x)**2 + (3*y)**2)). Like the original 3DGS
+Untrimmed quad half-extents are three Gaussian standard deviations. Geometry
+may trim shader-zero tails while preserving their original UV coordinates.
+The OSL expression evaluates exp(-0.5 * ((3*x)**2 + (3*y)**2)). Like the original 3DGS
 rasterizer, contributions below 1/255 are discarded and alpha is capped at .99.
-Discarding nearly transparent corners also avoids unnecessary transparency
-intersections in a ray tracer. The shader is embedded in the material.
+Geometry-side trimming reduces unnecessary transparency intersections; the
+shader still discards the remaining transparent corners. It is embedded in the material.
 
 The Redshift Standard Material is deliberately selected: its thin-walled
 subsurface weight is diffuse transmission, suitable for zero-thickness cards.

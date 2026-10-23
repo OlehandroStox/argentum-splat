@@ -6,14 +6,14 @@ The separate **Help** tab beside **Object** contains an offline guide. Choose **
 
 ## Import quality
 
-Choose **SCAN → Import Quality** before loading, or use the non-modal choice window for files above 4 million splats.
+New objects use **MAX — Full Source** automatically. Choose a lower **SCAN → Import Quality** for a faster draft. The optional large-file choice window is disabled by default.
 
 | Preset | Retained splats, before opacity filtering |
 | --- | ---: |
 | LOW | Up to 250,000 |
 | MEDIUM | Up to 1,000,000 |
-| HIGH (default) | Up to 4,000,000 |
-| MAX — Full Source | All opacity-eligible source splats |
+| HIGH | Up to 4,000,000 |
+| MAX — Full Source (default) | All opacity-eligible source splats |
 
 **Import Budget** reads the source count without loading the geometry and shows the selected upper bound and an approximate additional RAM range. It is not a VRAM measurement. If the estimated allocation exceeds available RAM, loading stops with an explanation; MAX is never silently reduced. **Ask for Large Files** remembers its setting per object. Cancel closes the choice without starting heavy work; processing also retains its progress/Cancel window and the previous complete model.
 
@@ -28,11 +28,11 @@ Labels match the plugin's English interface. Decimal LOOK controls increment by 
 
 ## New-object defaults
 
-New objects start with **Source Fidelity**: Maximum Splats **4,000,000**, Minimum Opacity **1/255 ≈ 0.00392157**, Camera-Facing Cards **on**, Pixel Footprint **0.075**, SH degree **3**, SH Strength **1**, Normal Smoothing **0**. LOOK starts with **sRGB Source to Scene Linear**, Highlight Limit **3**, Emission **1**, Diffuse **0**, Subsurface **0**. Global Scale **100**, Splat Scale **1** and Opacity Multiplier **1** remain unchanged.
+New objects start with **Source Fidelity**: Maximum Splats **0 (Full Source)**, Minimum Opacity **1/255 ≈ 0.00392157**, Camera-Facing Cards **on**, Pixel Footprint **0.075**, SH degree **3**, SH Strength **1**, Normal Smoothing **0**. LOOK starts with **sRGB Source to Scene Linear**, Highlight Limit **3**, Emission **1**, Diffuse **0**, Subsurface **0**. Global Scale **100**, Splat Scale **1** and Opacity Multiplier **1** remain unchanged.
 
 **Existing and duplicated objects keep their saved values.** Apply Source Fidelity explicitly to an older object. It preserves colour correction, scale, axis conversion and a lower opacity threshold. The preset does not reset a deliberately chosen Colour Management mode.
 
-Large imports and camera-facing updates need more time and RAM than a reduced scan. Point Preview starts at **50,000 points** for new objects; it only reduces editor drawing. For draft work, lower Maximum Splats or turn Camera-Facing Cards off, accepting reduced detail or projection accuracy. Choose HIGH or MAX for final retention; Source Fidelity preserves that choice. Gaussian Count controls AI generation separately; the 4-million import limit does not create extra Gaussians.
+Large imports and camera-facing updates need more time and RAM than a reduced scan. Point Preview starts at **50,000 points** for new objects; it only reduces editor drawing. For draft work, lower Maximum Splats or turn Camera-Facing Cards off, accepting reduced detail or projection accuracy. Choose HIGH or MAX for final retention; Source Fidelity preserves that choice. Gaussian Count controls AI generation separately; the import limit does not create extra Gaussians.
 
 ## Input
 
@@ -68,7 +68,7 @@ Scan reading/calculation runs in a worker; C4D geometry is assembled in short UI
 | Normal Smoothing Passes | 0 disables; 1–8 averages nearby normals with aligned orientation. Does not blur the positions. Perspective camera-facing cards already share one normal; their redundant smoothing pass is skipped. |
 | Initialise / Reload | Load or refresh the scan with progress and Cancel. Unchanged source/settings reuse prepared data; file timestamp/size and loading settings invalidate the relevant caches. It does not rerun AI. |
 | Source Fidelity – Preserve Detail | Preserve the import limit; set SH3 / SH Strength 1, Emission 1, Diffuse 0, Subsurface 0 and Normal Smoothing Passes 0. Enable Camera-Facing Cards and Pixel Footprint 0.075; clear Projection Camera to follow the current camera. Lower Minimum Opacity to at most 1/255, retaining a smaller existing threshold. Starts an update; Undo supported. |
-| Auto Prepare Redshift on Import | On for new objects. Apply the Redshift depth/sampling floors once per source path, modification time and file size. The marker survives save/reopen; later camera, LOOK and reload operations do not overwrite your manual render settings. Off keeps full manual control. No camera, lights, exposure or colour-management changes. Undo supported. |
+| Auto Prepare Redshift on Import | On for new objects. Apply the Redshift depth/sampling floors once per source. On the first SOG import into an empty scene, replace the default ACES view with Un-tone-mapped to preserve captured colours. Existing scenes and custom views are preserved. The saved marker prevents later camera, LOOK and reload operations from resetting manual choices. Disable for full manual control. Lights, exposure and working colour space stay unchanged. Undo supported. |
 | Auto Frame in Empty Scene | On for new objects. Once per new source, create a camera when this is the only scene object and no user camera/Projection Camera is selected. Fit robust source bounds and adapt the near clipping plane to size; use matching AI camera metadata when available. Reuse an untouched generated camera for a changed source. Existing scene content and hand-edited cameras block automatic reframing. Source geometry, units and axes stay unchanged. |
 | Frame Loaded Scan | Create and activate a separate editable camera for the loaded model. Preserves earlier cameras. Starts a camera-dependent update using the parsed source; no file reread. |
 | Set Redshift Detail Quality | Raise transparency depth to at least 128, Unified Min Samples to 16 and Max Samples to 128. Disables Automatic Sampling so these floors take effect; sets adaptive thresholds to at most 0.01. Keeps stricter existing settings. Changes the current document only on explicit use; Undo supported. Can increase render time. |
@@ -121,7 +121,7 @@ For large scans, keep **Point Preview on** and start with the new default of **5
 | Global Scale | Scale the whole model. |
 | Pixel Footprint (variance; 0 = Off) | Image-space filtering for perspective Camera-Facing Cards. Default 0.075 preserves a small footprint for thin details; 0 disables filtering. Range 0–2, step 0.025. Higher values broaden the projected splats and can soften detail. |
 | Splat Scale | Change card sizes without moving their centres. Oversizing can blur details; undersizing can create holes. |
-| Maximum Splats | Retain up to this many opacity-eligible splats; above the limit, take a deterministic uniform sample across the input file. Default 4,000,000; 0 means Full Source; this retains existing splats rather than generating new ones. Loading/filter changes queue a new load after changes settle; Initialise / Reload starts it immediately. |
+| Maximum Splats | Retain up to this many opacity-eligible splats; above the limit, take a deterministic uniform sample across the input file. Default 0 (Full Source); this retains existing splats rather than generating new ones. Loading/filter changes queue a new load after changes settle; Initialise / Reload starts it immediately. |
 | Minimum Opacity | Discard nearly transparent splats on load. Default 1/255 (about 0.00392157). Lower values retain fine details but may increase memory/render work. |
 | Opacity Multiplier | Scale the opacity of retained splats. |
 | Auto SOG Orientation | Enabled for new objects. Map conventional SOG Y-down coordinates to Cinema 4D Y-up before fitting the first camera; transform shape and view-dependent colour consistently. Older saved objects may keep this disabled. Turn off for a source that was already reoriented. |
@@ -151,6 +151,6 @@ HIGH retains up to 4 million splats; MAX keeps all that pass the opacity filter.
 
 ## Automatic framing and Source Summary
 
-Automatic framing fits an overview around the main scan region, reducing the influence of distant outliers without deleting them. Existing user cameras remain unchanged. An interior may need a camera placed inside the captured area.
+Automatic framing fits an overview around the main scan region. Long background tails affect neither its framing bounds nor source retention. For conventional SOG, detailed projected coverage near the source origin can select an interior starting view. Existing user cameras remain unchanged. This is a geometric estimate, not recovery of missing camera metadata.
 
 **Source Summary** shows retained/source counts, SH degree, colour space and whether filtering or a load limit reduced the data. It does not rate reconstruction quality.

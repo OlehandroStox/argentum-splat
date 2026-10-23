@@ -1,4 +1,4 @@
-ARGENTUM SPLAT 0.8.1 — Cinema 4D 2027 / Windows / Redshift
+ARGENTUM SPLAT 0.8.2-dev — Cinema 4D 2027 / Windows / Redshift
 
 УСТАНОВКА
 1. Закройте Cinema 4D.

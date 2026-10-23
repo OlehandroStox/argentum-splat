@@ -188,6 +188,18 @@ def build_mesh(cloud, prepared, material, opacity=1., weights=None):
     return complete_steps(build_mesh_steps(cloud, prepared, material, opacity, weights))
 
 
+def gaussian_uv_corners(support, cache):
+    corners = cache.get(support)
+    if corners is None:
+        low, high = .5*(1.-support), .5*(1.+support)
+        corners = dict(a=c4d.Vector(low,low,0), b=c4d.Vector(high,low,0),
+                       c=c4d.Vector(high,high,0), d=c4d.Vector(low,high,0))
+        if len(cache) >= 512:
+            cache.clear()
+        cache[support] = corners
+    return corners
+
+
 def build_mesh_steps(cloud, prepared, material, opacity=1., weights=None):
     indices = geometry.card_indices(prepared, (weights or {}).get('compact_cards', False))
     count = len(indices)
@@ -210,16 +222,18 @@ def build_mesh_steps(cloud, prepared, material, opacity=1., weights=None):
     mesh.MakeTag(c4d.Tphong)
     normal_data = normal_tag.GetDataAddressW()
     alphas = []
-    corners = dict(a=c4d.Vector(0,0,0), b=c4d.Vector(1,0,0),
-                   c=c4d.Vector(1,1,0), d=c4d.Vector(0,1,0))
+    uv_cache = {}
     for n, (source_index, alpha) in enumerate(zip(indices, core.iter_attributes(cloud, 'opacity', indices))):
         if n % 1024 == 0:
             yield ('Build Gaussian cards', n, count)
         center, u, v = c4d.Vector(*centers[source_index]), c4d.Vector(*us[source_index]), c4d.Vector(*vs[source_index])
+        support = geometry.gaussian_support(alpha*opacity)
+        u *= support
+        v *= support
         points.extend((center-u-v, center+u-v, center+u+v, center-u+v))
         j = n*4
         mesh.SetPolygon(n, c4d.CPolygon(j,j+1,j+2,j+3))
-        uv.SetSlow(n, **corners)
+        uv.SetSlow(n, **gaussian_uv_corners(support, uv_cache))
         rgba = c4d.Vector4d(*colors[source_index], min(1., alpha*opacity))
         for k in range(4):
             c4d.VertexColorTag.SetPoint(color_data, None, None, j+k, rgba)
@@ -273,7 +287,7 @@ def update_mesh_attributes(mesh, cloud, prepared, opacity, weights,
 def update_mesh_steps(mesh, cloud, prepared, opacity, weights,
                       update_colors=False, update_opacity=False,
                       update_weights=False, material=None, update_material=False):
-    """Update an owned clone's attributes, leaving points/UV/normals untouched.
+    """Update an owned clone; opacity also updates its shader-zero support.
 
     Never pass op.GetCache() directly: it belongs to Cinema 4D and may be in use
     by other generators or an interactive renderer. The caller owns this mesh.
@@ -283,6 +297,8 @@ def update_mesh_steps(mesh, cloud, prepared, opacity, weights,
     if mesh.GetPointCount() != count * 4 or mesh.GetPolygonCount() != count:
         raise ValueError("Cached Gaussian mesh does not match the source cloud.")
     tags = {tag.GetName(): tag for tag in mesh.GetTags()}
+    uv = mesh.GetTag(c4d.Tuvw) if update_opacity else None
+    uv_cache = {}
     if update_colors or update_opacity:
         tag = tags["SplatColor"]
         data = tag.GetDataAddressW()
@@ -291,6 +307,14 @@ def update_mesh_steps(mesh, cloud, prepared, opacity, weights,
             if index % 1024 == 0:
                 yield ('Update colour / opacity', index, count)
             rgba = c4d.Vector4d(*colors[source_index], min(1., max(0., alpha * opacity)))
+            if update_opacity:
+                support = geometry.gaussian_support(alpha*opacity)
+                center = c4d.Vector(*prepared[0][source_index])
+                u = c4d.Vector(*prepared[1][source_index])*support
+                v = c4d.Vector(*prepared[2][source_index])*support
+                for k, point in enumerate((center-u-v,center+u-v,center+u+v,center-u+v)):
+                    mesh.SetPoint(4*index+k,point)
+                uv.SetSlow(index, **gaussian_uv_corners(support, uv_cache))
             for corner in range(4):
                 c4d.VertexColorTag.SetPoint(data, None, None, 4 * index + corner, rgba)
         tag.SetDirty(c4d.DIRTYFLAGS_DATA)
@@ -368,9 +392,25 @@ class SplatObject(InteractiveScan, c4d.plugins.ObjectData):
         return True
 
     def Free(self, op):
+        self.release_transient_data()
         if self.job:
             PENDING.append((self,I.CANCEL))
             c4d.SpecialEventAdd(I.MESSAGE_ID)
+
+    def release_transient_data(self):
+        """Drop large Python buffers when the native owner is destroyed.
+
+        A Python wrapper can outlive its C4D node (undo/render snapshots or a
+        pending event). A weak instance registry alone therefore cannot bound
+        memory. Workers retain their own inputs until cancellation completes.
+        No live native node or shared source buffer is modified here.
+        """
+        if self.load_key is not None and CLOUD_CACHE.get(self.load_key) is self.cloud:
+            CLOUD_CACHE.pop(self.load_key, None)
+        self.invalidate()
+        self.mesh_template = None
+        self.ready_request = self.blocked_request = self.queued_request = None
+        self.source_analysis = self.display_key = None
 
     def Read(self, op, hf, level):
         # C4D merges saved containers over Init defaults. Without this explicit
@@ -1067,6 +1107,7 @@ class Coordinator(c4d.plugins.MessageData):
                             instance.cancel(notify=False)
                         except Exception as error:
                             print("Argentum Splat cancellation:",error)
+                    instance.release_transient_data()
                 except Exception as error:
                     try:
                         instance.report_failure(error)

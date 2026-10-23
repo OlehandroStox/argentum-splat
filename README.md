@@ -43,9 +43,11 @@ Media is processed locally. No paid API key or plugin subscription is required.
 
 ## First steps
 
+**Development prerelease:** [Download 0.8.2-dev for Windows](https://github.com/OlehandroStox/argentum-splat/releases/download/v0.8.2-dev/ArgentumSplat-0.8.2-dev-C4D2027-Windows.zip). This branch includes automatic SOG import improvements. Validation is incomplete; dense, nearly coplanar transparent layers can still show bright patches in Redshift. See the [changelog](CHANGELOG.md) before updating.
+
 **From a photo or video:** choose a file in **INPUT**, optionally select a frame, then click **Generate from Image / Video**. Wait for **Ready** in Status and render with Redshift.
 
-**From an existing scan:** choose it in **SCAN → Splat File** and select **Import Quality**. Start with HIGH; choose MAX to retain all splats that pass the opacity filter, if memory permits.
+**From an existing scan:** choose it in **SCAN → Splat File**. New objects use MAX to retain all splats that pass the opacity filter, if memory permits. Choose a lower **Import Quality** for drafts.
 
 In an empty scene the plugin prepares Redshift and fits a camera automatically. For a scan added to an existing scene, use your camera or **SCAN → Manual Tools → Frame Loaded Scan**.
 
@@ -56,7 +58,7 @@ For control explanations, open **Help → Language / Язык** in the plugin, o
 - Video and sequences provide **one frame for one static model**, not animated 3D or multi-view reconstruction.
 - A Gaussian model is not a watertight polygon mesh. Redshift uses Gaussian cards, so its appearance can differ from other viewers.
 - Large scans need more RAM and preparation time. **Preview Points** affects editor drawing; **Import Quality** affects loaded geometry.
-- Automatic framing provides an overview. Interior scans may need a camera placed inside the captured area.
+- Automatic framing checks SOG capture-space detail for an interior view, ignores distant background tails when fitting an outdoor scene, and otherwise uses an overview. It cannot recover an unknown original camera or missing source detail.
 
 ## Support and feedback
 
