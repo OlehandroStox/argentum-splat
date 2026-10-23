@@ -217,7 +217,7 @@ class LargeScanStorageTests(unittest.TestCase):
                                          255, 128, 0, 255, 255, 128, 128, 128))
             normal = core.load(path)
             packed = core.load(path, compact=True)
-            self.assertIsInstance(packed.splats, list)
+            self.assertIsInstance(packed.splats, core._PackedSplats)
             self.assertEqual(normal.splats, packed.splats)
             with self.assertRaisesRegex(ValueError, 'boolean'):
                 core.load(path, compact=1)

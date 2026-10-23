@@ -375,6 +375,8 @@ class SplatObject(InteractiveScan, c4d.plugins.ObjectData):
     def Read(self, op, hf, level):
         # C4D merges saved containers over Init defaults. Without this explicit
         # migration, old documents would unexpectedly gain the new Y flip.
+        if level < 2:
+            op[I.ASK_LARGE_IMPORT] = False  # do not interrupt reopening older scenes
         if level < 1:
             op[I.AUTO_SOG_ORIENTATION] = False
             return True
@@ -427,9 +429,11 @@ class SplatObject(InteractiveScan, c4d.plugins.ObjectData):
                         if cloud is not None:
                             break
             if cloud is None:
+                from . import import_budget
+                import_budget.check_memory(import_budget.source_count(path), int(op[I.MAX_SPLATS]))
                 cloud = core.load(path, max_splats=int(op[I.MAX_SPLATS]),
                     min_opacity=float(op[I.MIN_OPACITY]),
-                    unconverted_coordinates=bool(op[I.SPZ_RAW]), compact=int(op[I.MAX_SPLATS]) > 262144)
+                    unconverted_coordinates=bool(op[I.SPZ_RAW]), compact=True)
                 if is_converted and original_path.lower().endswith(".spz") and not op[I.SPZ_RAW]:
                     cloud = convert_spz_cloud_frame(cloud)
                 # A small shared read-only cache prevents repeat disk parsing in render clones.
@@ -640,6 +644,36 @@ class SplatObject(InteractiveScan, c4d.plugins.ObjectData):
                    I.SOURCE_FRAME,I.NUM_GAUSSIANS,I.STEPS,I.SEED,I.ALPHA_EROSION,I.FRAME_SCAN):
             return self.job is None
         return True
+
+    def GetDParameter(self, op, descid, flags):
+        from . import import_budget
+        key = descid[0].id
+        if key == I.IMPORT_QUALITY:
+            value = import_budget.preset_for(op.GetDataInstance().GetInt32(I.MAX_SPLATS))
+        elif key == I.IMPORT_PLAN:
+            try:
+                path = assets.resolve_path(op, op[I.FILE])
+                if path and import_budget.source_count(path) is None:
+                    cached = assets.resolve_path(op, op[I.CACHE_FILE])
+                    if cached and assets.cache_source_matches(path, op[I.CACHE_SOURCE]):
+                        path = cached
+                value = import_budget.plan(path, int(op[I.MAX_SPLATS])) if path else 'Choose a scan to see its splat count and import budget.'
+            except Exception as error:
+                value = 'Source information unavailable: ' + str(error)
+        else:
+            return True, None, flags
+        return True, value, flags | c4d.DESCFLAGS_GET_PARAM_GET
+
+    def SetDParameter(self, op, descid, value, flags):
+        if descid[0].id == I.IMPORT_QUALITY:
+            from . import import_budget
+            # CUSTOM keeps the exact existing Advanced value; preset selection
+            # changes that same saved parameter, including Undo and old scenes.
+            if int(value) in import_budget.PRESETS:
+                op.GetDataInstance().SetInt32(I.MAX_SPLATS, import_budget.PRESETS[int(value)])
+            op.SetDirty(c4d.DIRTYFLAGS_DATA)
+            return True, flags | c4d.DESCFLAGS_SET_PARAM_SET
+        return True, flags
 
     def GetDDescription(self, op, description, flags):
         from .description import describe

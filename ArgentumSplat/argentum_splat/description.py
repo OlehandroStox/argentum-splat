@@ -34,7 +34,11 @@ def describe(op, description, flags):
             container[c4d.DESC_SHORT_NAME] = labels[key]
             changed = True
         if key == I.MAX_SPLATS:
-            container[c4d.DESC_MAX] = 4000000
+            container[c4d.DESC_MIN] = 0
+            container[c4d.DESC_MAX] = 100000000
+            changed = True
+        if key == I.IMPORT_QUALITY:
+            container[c4d.DESC_DEFAULT] = 3
             changed = True
         if key == I.PIXEL_VARIANCE:
             container[c4d.DESC_STEP] = .025
@@ -48,6 +52,9 @@ def describe(op, description, flags):
         if changed:
             description.SetParameter(did, container, parent)
     controls = (
+        (I.IMPORT_QUALITY, c4d.DTYPE_LONG, 2001, 'Import Quality', 4),
+        (I.IMPORT_PLAN, c4d.DTYPE_STRING, 2001, 'Import Budget', 0),
+        (I.ASK_LARGE_IMPORT, c4d.DTYPE_BOOL, 2001, 'Ask for Large Files', 0),
         (I.AUTO_SOG_ORIENTATION, c4d.DTYPE_BOOL, 2005, 'Auto SOG Orientation (Y-down to Y-up)', 0),
         (I.AUTO_FRAME, c4d.DTYPE_BOOL, 2001, 'Auto Frame in Empty Scene', 0),
         (I.FRAME_SCAN, c4d.DTYPE_BUTTON, 2001, 'Frame Loaded Scan', 0),
@@ -87,6 +94,13 @@ def describe(op, description, flags):
             cycle.SetString(0, 'Auto (Image / Splat / Video)')
             cycle.SetString(1, 'Numbered Image Sequence')
             container[c4d.DESC_CYCLE] = cycle
+        if key == I.IMPORT_QUALITY:
+            from . import import_budget
+            cycle = c4d.BaseContainer()
+            for value, label in import_budget.LABELS.items():
+                cycle.SetString(value, label)
+            container[c4d.DESC_CYCLE] = cycle
+            container[c4d.DESC_DEFAULT] = 3
         if not description.SetParameter(did, container, c4d.DescID(c4d.DescLevel(group, c4d.DTYPE_GROUP, 0))):
             return False, flags
     return True, flags | c4d.DESCFLAGS_DESC_LOADED

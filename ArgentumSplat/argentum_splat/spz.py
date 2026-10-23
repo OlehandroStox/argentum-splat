@@ -72,8 +72,8 @@ def coordinate_metadata(version, unconverted_coordinates=False):
 
 
 def _options(max_splats, min_opacity, color_space):
-    if isinstance(max_splats, bool) or not isinstance(max_splats, int) or not 1 <= max_splats <= MAX_RETAINED:
-        raise ValueError(f"max_splats must be an integer from 1 to {MAX_RETAINED:,}.")
+    if isinstance(max_splats, bool) or not isinstance(max_splats, int) or not 0 <= max_splats <= MAX_RETAINED:
+        raise ValueError(f"max_splats must be 0 (full source) or an integer up to {MAX_RETAINED:,}.")
     if (isinstance(min_opacity, bool) or not isinstance(min_opacity, (int, float))
             or not math.isfinite(min_opacity) or not 0 <= min_opacity <= 1):
         raise ValueError("min_opacity must be finite and between 0 and 1.")
@@ -148,7 +148,7 @@ def _header(data):
     return version, count, degree, bits, flags, size
 
 
-def _decode_arrays(data, header, max_splats, min_opacity, requested_space, unconverted, progress=None):
+def _decode_arrays(data, header, max_splats, min_opacity, requested_space, unconverted, progress=None, compact=False):
     version, count, degree, fractional_bits, flags, unused_size = header
     rotation_bytes = 3 if version == 2 else 4
     sh_dim = _SH_DIMS[degree]
@@ -159,6 +159,11 @@ def _decode_arrays(data, header, max_splats, min_opacity, requested_space, uncon
     sh_start = rotation_start + rotation_bytes * count
     coordinate_scale = 2.0 ** (-fractional_bits)
     sampler = _Sampler(max_splats, min_opacity, progress)
+    codec = struct.Struct('<' + 'd' * (14 + sh_dim * 3))
+    def decode(record):
+        values = codec.unpack(record)
+        return Splat(values[:3], values[3:6], values[6], values[7:10],
+                     values[10:14], values[14:], values[3:6])
     for index in range(count):
         if index % 2048 == 0:
             sampler.report('Read SPZ', index, count)
@@ -179,7 +184,12 @@ def _decode_arrays(data, header, max_splats, min_opacity, requested_space, uncon
         if not unconverted:
             position = (position[0], -position[1], -position[2])
             rotation = (rotation[0], rotation[1], -rotation[2], -rotation[3])
-        sampler.add(index, Splat(position, raw_color, alpha, scales, rotation, sh, raw_color))
+        if compact:
+            slot = sampler.choose(index, position, alpha)
+            if slot is not None:
+                sampler.items[slot] = (index, codec.pack(*position, *raw_color, alpha, *scales, *rotation, *sh))
+        else:
+            sampler.add(index, Splat(position, raw_color, alpha, scales, rotation, sh, raw_color))
     metadata = {
         "format": "spz", "encoding": "gzip", "kind": "gaussian",
         "has_sh": bool(sh_dim), "sh_degree": degree, "source_color_space": None,
@@ -187,10 +197,11 @@ def _decode_arrays(data, header, max_splats, min_opacity, requested_space, uncon
         "antialiased": bool(flags & 1), "fractional_bits": fractional_bits,
     }
     metadata.update(coordinate_metadata(version, unconverted))
-    return sampler.finish(count, metadata, "srgb" if requested_space == "auto" else requested_space)
+    return sampler.finish(count, metadata, "srgb" if requested_space == "auto" else requested_space,
+                          decode if compact else None, compact=compact)
 
 
-def _load_stream(stream, max_splats, min_opacity, unconverted, requested_space, progress=None):
+def _load_stream(stream, max_splats, min_opacity, unconverted, requested_space, progress=None, compact=False):
     signature = stream.read(8)
     stream.seek(0)
     if signature[:4] == b"NGSP":
@@ -219,12 +230,12 @@ def _load_stream(stream, max_splats, min_opacity, unconverted, requested_space, 
                     raise SplatFormatError("SPZ has unexpected trailing attribute data.")
                 spool.flush()
                 with mmap.mmap(spool.fileno(), 0, access=mmap.ACCESS_READ) as mapped:
-                    return _decode_arrays(mapped, header, max_splats, min_opacity, requested_space, unconverted, progress)
+                    return _decode_arrays(mapped, header, max_splats, min_opacity, requested_space, unconverted, progress, compact)
     except (gzip.BadGzipFile, EOFError, zlib.error) as error:
         raise SplatFormatError("SPZ gzip stream is corrupt or truncated: " + str(error)) from error
 
 
-def load_spz(path, max_splats=60000, min_opacity=0.02, unconverted_coordinates=False, color_space="auto", progress=None):
+def load_spz(path, max_splats=60000, min_opacity=0.02, unconverted_coordinates=False, color_space="auto", progress=None, compact=False):
     """Read SPZ v2/v3 to SplatCloud; normally convert native RUB into RDF.
 
     ``unconverted_coordinates=True`` preserves source means, quaternions and
@@ -234,7 +245,7 @@ def load_spz(path, max_splats=60000, min_opacity=0.02, unconverted_coordinates=F
     requested_space = _options(max_splats, min_opacity, color_space)
     path = Path(path)
     with path.open("rb") as stream:
-        cloud = _load_stream(stream, max_splats, min_opacity, bool(unconverted_coordinates), requested_space, progress)
+        cloud = _load_stream(stream, max_splats, min_opacity, bool(unconverted_coordinates), requested_space, progress, compact)
     cloud.metadata["source"] = str(path.resolve())
     return cloud
 

@@ -60,6 +60,10 @@ IMPORT_CAMERA_STATE = 1090
 FRAME_SCAN = 1091
 SOURCE_INFO = 1092
 AUTO_SOG_ORIENTATION = 1093
+IMPORT_QUALITY = 1094  # virtual view of MAX_SPLATS, never a second source of truth
+IMPORT_PLAN = 1095
+ASK_LARGE_IMPORT = 1096
+IMPORT_APPROVED = 1097
 # Shared by new objects and the explicit Source Fidelity action. Import limits
 # retain source records; they do not increase the AI model's Gaussian count.
 SOURCE_FIDELITY = {
@@ -81,6 +85,7 @@ DEFAULTS = {
     AUTO_REDSHIFT: True, AUTO_PREPARED_SOURCE: "",
     AUTO_FRAME: True, AUTO_FRAME_SOURCE: "", IMPORT_CAMERA_STATE: "", SOURCE_INFO: "",
     AUTO_SOG_ORIENTATION: True,
+    ASK_LARGE_IMPORT: True, IMPORT_APPROVED: '',
     **SOURCE_FIDELITY,
 }
 GEOMETRY_PARAMETERS = (

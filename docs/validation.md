@@ -1,5 +1,25 @@
 # Validation scope
 
+## 0.8.0 import-quality validation
+
+**235 portable tests pass on Python 3.10 and 3.12.** Native checks used Cinema 4D 2027.0.0 / Python 3.11.4, Redshift, RTX 4070 12 GB and 32 GB RAM. The plugin was cold-started with the new registration callbacks. Three completed 1280 × 720 Redshift renders returned result 0 and were visually inspected. No manual LOOK or camera correction was applied; LOW and MAX used the same camera.
+
+| Source / preset | Retained / original | Preparation | Render |
+|---|---:|---:|---:|
+| Cobweb_Quality | 250,000 / 5,890,142 | 66.8 s | 16.1 s |
+| Cobweb_MAX | 5,764,289 / 5,890,142 | 686.5 s | 76.2 s |
+| Porsche_MEDIUM | 624,332 / 625,597 | 72.6 s | 36.5 s |
+
+- Cobweb MAX retained **all 5,764,289 opacity-eligible splats**, exceeding the previous 4m cap; 125,853 source records were excluded by the configured opacity filter. Fine web strands were visibly more complete than LOW. This is a retention/render check, not pixel parity with a website.
+- The large-file choice opened before conversion/preparation. Cancel blocked automatic restart. Cancelling a running MAX read kept the existing LOW cloud, geometry, colours and completed mesh unchanged. Unchanged Reload reused the prepared data without a new job.
+- LOW/MEDIUM/HIGH/MAX resolve to 250k/1m/4m/0 in the native parameter system. Advanced edits report CUSTOM. Undo, cloning and save/reopen preserve the selected limit. Old scenes retain their saved limits/orientation and do not acquire a new import prompt.
+- Source counts/preset budgets were inspected from headers of seven local SOG files. The 9,975,598-record church file opened the new choice window and was cancelled before heavy processing; full MAX rendering of that file was **not** tested in this release.
+- RAM rejection is covered by deterministic tests. The estimate is approximate and does not measure VRAM. Native assembly still has brief synchronous allocations; the largest observed MAX assembly slice was about 1.64 s. Whole-scene processing is not instantaneous.
+- Interior auto-framing remains unchanged. Full retention does not recover a website camera, fix arbitrary scan orientation, or guarantee native Gaussian-rasterizer parity. AI inference and full animated MoGraph regression were not rerun for this change.
+
+Private validation images/scenes and source models are excluded from the public ZIP. Cobweb Scope is by Dan Barash ([source](https://superspl.at/scene/73614e89), CC BY 4.0); Porsche is by VODKIN ([source](https://superspl.at/scene/815d7ba0), CC BY 4.0).
+
+
 ## 0.7.2 five real SOG imports with untouched model defaults
 
 **227 portable tests pass on Python 3.10 and 3.12.** Native validation used a cold restart of Cinema 4D 2027.0.0, Python 3.11.4, RTX 4070 12 GB and 32 GB system RAM. Each SOG was selected on a fresh object in a separate empty document. Output was 1280 × 720; LOOK, import cap, opacity, scale and generated cameras were not manually tuned. All five Redshift renders completed with result 0 and their actual OCIO display images were inspected.

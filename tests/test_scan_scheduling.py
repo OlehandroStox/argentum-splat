@@ -257,10 +257,12 @@ class InteractiveSchedulingTests(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         source = Path(self.tmp.name) / "scan.splat"
-        source.write_bytes(b"fixture: parser replaced by FakeWorker")
+        source.write_bytes(bytes(32))  # one-record header budget; parser is FakeWorker
         self.op = FakeObject(source)
         self.plugin = types.ModuleType("argentum_splat.plugin")
         self.plugin.JOBS = set()
+        self.start_patch(patch.dict(sys.modules, {'argentum_splat.import_choice':
+                         types.SimpleNamespace(offer=Mock(return_value=False))}))
         self.plugin.CLOUD_CACHE = {}
         # Production settings() builds fresh projection data for every snapshot.
         self.plugin.settings = lambda op: deepcopy(op.values)
@@ -321,6 +323,7 @@ class InteractiveSchedulingTests(unittest.TestCase):
         context = dict(document_path=self.assets.resolve_path, converter=self.plugin.converter,
             os=os, Path=Path, I=I, CLOUD_CACHE=cache, INSTANCES=live_instances,
             core=types.SimpleNamespace(load=reader))
+        context['__package__'] = 'argentum_splat'
         exec(compile(isolated, "plugin.py:ensure_loaded", "exec"), context)
         return context["ensure_loaded"]
 
@@ -450,7 +453,7 @@ class InteractiveSchedulingTests(unittest.TestCase):
     def test_new_source_has_foreground_progress(self):
         self.install_ready_cloud()
         changed = Path(self.tmp.name) / "replacement.splat"
-        changed.write_bytes(b"replacement")
+        changed.write_bytes(bytes(64))
         self.op[I.FILE] = str(changed)
         self.instance.start_scan()
         self.assertTrue(self.instance.job["foreground"])

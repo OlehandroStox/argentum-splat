@@ -104,6 +104,17 @@ class DefaultFidelityTests(unittest.TestCase):
         old = dict(emission_weight=.64, diffuse_weight=1., subsurface_weight=.4)
         self.assertEqual(weights(old), old)
 
+    def test_appearance_preset_never_changes_low_or_full_source_budget(self):
+        host = SimpleNamespace(UNDOTYPE_CHANGE=1, DIRTYFLAGS_DATA=2, EventAdd=Mock())
+        for budget in (250000, 0, 12345, 9000000):
+            op = self.new_object()
+            op.update({I.MAX_SPLATS:budget,I.MATERIAL:None})
+            op.doc = SimpleNamespace(StartUndo=Mock(),AddUndo=Mock(),EndUndo=Mock())
+            op.GetNodeData = lambda: SimpleNamespace(start_scan=Mock())
+            op.SetDirty = Mock()
+            function('quality.py','apply_detail_preset',dict(I=I,c4d=host))(op)
+            self.assertEqual(op[I.MAX_SPLATS],budget)
+
 
 if __name__ == '__main__':
     unittest.main()

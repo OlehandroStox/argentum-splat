@@ -28,7 +28,7 @@ MAX_RECORDS = 100_000_000
 MAX_LIST_LENGTH = 1_000_000
 MAX_HEADER_BYTES = 1_048_576
 MAX_LINE_BYTES = 1_048_576
-MAX_RETAINED = 4_000_000
+MAX_RETAINED = MAX_RECORDS
 
 # struct code, integral lower bound, integral upper bound.
 _TYPES = {
@@ -208,7 +208,7 @@ def _scales(logs, context):
 class _Sampler:
     """Deterministic Algorithm R reservoir over all opacity-eligible records."""
     def __init__(self, limit, min_opacity, progress=None, *, compact=False):
-        self.limit = limit
+        self.limit = limit or MAX_RECORDS  # zero means all eligible source records
         self.min_opacity = min_opacity
         self.items = []
         self.eligible = 0
@@ -250,7 +250,8 @@ class _Sampler:
             "eligible_count": self.eligible,
             "filtered_count": total - self.eligible,
             "retained_count": len(self.items),
-            "sampling": "deterministic reservoir, all eligible source records",
+            "sampling": ("full eligible source" if len(self.items) == self.eligible else
+                         "deterministic reservoir, all eligible source records"),
             "color_space": "linear",
             "input_color_space": space,
             "bounds": (tuple(self.minimum), tuple(self.maximum)) if total else None,
@@ -259,7 +260,10 @@ class _Sampler:
         # the original reservoir alive doubles its references and, for generic
         # readers, retains the old colour/Splat objects until the pass ends.
         items, self.items = self.items, []
-        items.sort(key=lambda pair: pair[0])
+        # Full imports are already in source order. Avoid a huge, uninterruptible
+        # sort and its temporary key array when no reservoir replacement occurred.
+        if self.eligible > self.limit:
+            items.sort(key=lambda pair: pair[0])
         splats = []
         records = [] if compact else None
         effective_degree = 0
@@ -682,7 +686,7 @@ def _load_splat(stream, sampler, requested_space):
         sampler.report('Read SPLAT', index, count)
         block_count = min(32768, count - index)
         block = _read_exact(stream, block_count * 32, "SPLAT")
-        for values in codec.iter_unpack(block):
+        for block_index, values in enumerate(codec.iter_unpack(block)):
             _finite(values[:6], f"SPLAT record {index}")
             scales = tuple(values[3:6])
             if any(v <= 0 for v in scales):
@@ -695,12 +699,14 @@ def _load_splat(stream, sampler, requested_space):
             if slot is not None:
                 # Keep validated scalar data; decode attributes only for the
                 # final reservoir, not each record later replaced in it.
-                sampler.items[slot] = (index, values)
+                record = block[block_index*32:(block_index+1)*32] if sampler.compact else values
+                sampler.items[slot] = (index, record)
             index += 1
             if index % 2048 == 0:
                 sampler.report('Read SPLAT', index, count)
     space = "srgb" if requested_space == "auto" else requested_space
-    def decode(values):
+    def decode(record):
+        values = codec.unpack(record) if isinstance(record, bytes) else record
         raw = tuple(c / 255.0 for c in values[6:9])
         rotation = _quaternion(tuple((v - 128) / 128.0 for v in values[10:14]), 'SPLAT')
         return Splat(tuple(values[:3]), raw, values[9] / 255.0,
@@ -709,7 +715,7 @@ def _load_splat(stream, sampler, requested_space):
         "format": "splat", "encoding": "binary_little_endian", "kind": "gaussian",
         "has_sh": False, "sh_degree": 0, "source_color_space": None,
         "color_space_assumed": requested_space == "auto",
-    }, space, decode)
+    }, space, decode, compact=sampler.compact)
 
 
 def load(path, max_splats=60000, min_opacity=0.02, *, point_radius=0.01,
@@ -718,19 +724,21 @@ def load(path, max_splats=60000, min_opacity=0.02, *, point_radius=0.01,
     """Read and validate every source record, retaining a bounded random sample.
 
     Sampling is deterministic and covers the entire file after opacity filtering.
+    ``max_splats=0`` keeps every eligible record, subject to the source-format
+    validation limit; it does not disable opacity filtering.
     Errors in unselected records are still reported. ``total_count`` is the
     original vertex count; metadata includes eligible/filtered/retained counts.
     Point-cloud RGB uses uchar [0,255] or float [0,1], with explicit native-unit
     standard deviation ``point_radius``. Unlabelled files assume sRGB; callers
     may select ``color_space='linear'`` to override that assumption.
     ``unconverted_coordinates`` applies only to SPZ and preserves its raw frame.
-    ``compact=True`` keeps binary Gaussian PLY records in an immutable packed
+    ``compact=True`` keeps binary Gaussian PLY, SPLAT and SPZ records in a packed
     sequence with len/index/slice/iteration support. Values and validation are
     unchanged; each access creates a transient Splat instead of caching it.
     The default and other formats retain the existing list representation.
     """
-    if isinstance(max_splats, bool) or not isinstance(max_splats, int) or not 1 <= max_splats <= MAX_RETAINED:
-        raise ValueError(f"max_splats must be an integer from 1 to {MAX_RETAINED:,}.")
+    if isinstance(max_splats, bool) or not isinstance(max_splats, int) or not 0 <= max_splats <= MAX_RETAINED:
+        raise ValueError(f"max_splats must be 0 (full source) or an integer up to {MAX_RETAINED:,}.")
     if (isinstance(min_opacity, bool) or not isinstance(min_opacity, (int, float))
             or not math.isfinite(min_opacity) or not 0 <= min_opacity <= 1):
         raise ValueError("min_opacity must be finite and between 0 and 1.")
@@ -743,7 +751,7 @@ def load(path, max_splats=60000, min_opacity=0.02, *, point_radius=0.01,
         from .spz import load_spz
         return load_spz(path, max_splats=max_splats, min_opacity=min_opacity,
                         unconverted_coordinates=unconverted_coordinates,
-                        color_space=requested_space, progress=progress)
+                        color_space=requested_space, progress=progress, compact=compact)
     sampler = _Sampler(max_splats, min_opacity, progress, compact=compact)
     with path.open("rb") as stream:
         if suffix == ".ply":

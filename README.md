@@ -3,7 +3,7 @@
 <h1 align="center">Argentum Splat</h1>
 <p align="center"><strong>Images to 3D Gaussian splats. Inside Cinema 4D.</strong><br>Free, open-source integration for Cinema 4D 2027 and Redshift on Windows.</p>
 <p align="center">
-  <a href="https://github.com/OlehandroStox/argentum-splat/releases/download/v0.7.2/ArgentumSplat-0.7.2-C4D2027-Windows.zip">Download 0.7.2</a> ·
+  <a href="https://github.com/OlehandroStox/argentum-splat/releases/download/v0.8.0/ArgentumSplat-0.8.0-C4D2027-Windows.zip">Download 0.8.0</a> ·
   <a href="#install">Install</a> ·
   <a href="docs/controls.md">Controls</a> ·
   <a href="README.ru.md">Русский</a> ·
@@ -18,13 +18,31 @@
 
 Generate a static 3D Gaussian model from one image with **local TripoSplat inference**, or load an existing Gaussian scan. Adjust its appearance, render it with Redshift, and use Cinema 4D deformers and MoGraph.
 
-> **Preview release:** version 0.7.2 uses development plugin IDs `1000007–1000009`, not registered permanent Maxon IDs. They can conflict with another plugin using those IDs. Test in a separate C4D preferences folder before production use. [Details and compatibility](docs/installation.md#plugin-ids).
+> **Preview release:** version 0.8.0 uses development plugin IDs `1000007–1000009`, not registered permanent Maxon IDs. They can conflict with another plugin using those IDs. Test in a separate C4D preferences folder before production use. [Details and compatibility](docs/installation.md#plugin-ids).
 
-## Current release: 0.7.2
+## Import quality in 0.8.0
 
-**Known first-view limitation:** the five-file native test found that an interior church scan loads but its automatic exterior overview is unusable. The 4-million cap also reduces larger sources. Automatic framing is an overview helper, not a guarantee that every scan opens at its authored viewpoint. [Actual test results](docs/validation.md#072-five-real-sog-imports-with-untouched-model-defaults).
+Choose **SCAN → Import Quality** before loading, or use the non-modal choice window for files above 4 million splats.
 
-**[Download the Windows ZIP](https://github.com/OlehandroStox/argentum-splat/releases/download/v0.7.2/ArgentumSplat-0.7.2-C4D2027-Windows.zip)** · [Release notes](https://github.com/OlehandroStox/argentum-splat/releases/tag/v0.7.2)
+| Preset | Retained splats, before opacity filtering |
+| --- | ---: |
+| LOW | Up to 250,000 |
+| MEDIUM | Up to 1,000,000 |
+| HIGH (default) | Up to 4,000,000 |
+| MAX — Full Source | All opacity-eligible source splats |
+
+**Import Budget** reads the source count without loading the geometry and shows the selected upper bound and an approximate additional RAM range. It is not a VRAM measurement. If the estimated allocation exceeds available RAM, loading stops with an explanation; MAX is never silently reduced. **Ask for Large Files** remembers its setting per object. Cancel closes the choice without starting heavy work; processing also retains its progress/Cancel window and the previous complete model.
+
+These presets control the existing **Maximum Splats** setting: **0 means Full Source**. A manually entered limit appears as CUSTOM. Saved objects keep their limits. **Source Fidelity** now preserves the chosen import budget. **SH 1–3** controls stored view-dependent colour; **Preview Points** controls editor drawing only. Neither replaces Import Quality. The parser still validates the whole source, so LOW does not make reading a large file instant. MAX is bounded by actual hardware and the parser's 100-million-record input validation ceiling, not the previous 4-million retained cap.
+
+This update does not recover authored interior camera positions or turn Redshift cards into a native Gaussian rasterizer. The church first-view limitation remains separate from the import count.
+
+
+## Current release: 0.8.0
+
+**Known first-view limitation:** the five-file native test found that an interior church scan loads but its automatic exterior overview is unusable. HIGH samples larger sources; MAX can retain all eligible splats when memory permits. Automatic framing is an overview helper, not a guarantee that every scan opens at its authored viewpoint. [Actual test results](docs/validation.md#072-five-real-sog-imports-with-untouched-model-defaults).
+
+**[Download the Windows ZIP](https://github.com/OlehandroStox/argentum-splat/releases/download/v0.8.0/ArgentumSplat-0.8.0-C4D2027-Windows.zip)** · [Release notes](https://github.com/OlehandroStox/argentum-splat/releases/tag/v0.8.0)
 
 - **SOG orientation:** new objects convert conventional Y-down SOG coordinates to Cinema 4D Y-up before framing. Saved older scenes retain their orientation; an Advanced override handles pre-oriented sources.
 - **Less work on large scans:** build native geometry only for nonzero projected cards of standalone objects, retaining all imported source records. Hierarchies keep stable per-source indexing for MoGraph. Decode only the attributes needed by each pass.
@@ -35,14 +53,14 @@ Generate a static 3D Gaussian model from one image with **local TripoSplat infer
 - **Automatic Redshift preparation:** new objects prepare transparency depth and sampling once per new source, with an opt-out checkbox. Later camera/LOOK edits preserve manual render settings.
 - **Quality by default:** new objects retain up to 4 million splats at a 1/255 opacity threshold, with captured-colour lighting, full available SH and perspective filtering. Existing scene values stay intact.
 - **Quiet updates:** camera and LOOK changes reuse loaded data and update in the background; initial loads and explicit reloads retain progress and Cancel.
-- **Source Fidelity:** full available SH, up to 4 million splats, unlit captured colour and perspective pixel filtering for thin details. This remains a Redshift card approximation.
-- **Lower Python memory:** binary Gaussian PLY records stay packed when Maximum Splats exceeds 262,144; native plugin preparation uses compact float64 geometry and colour buffers.
+- **Source Fidelity:** full available SH, the chosen import budget, unlit captured colour and perspective pixel filtering for thin details. This remains a Redshift card approximation.
+- **Lower Python memory:** binary Gaussian PLY, SPLAT and SPZ records stay packed; native plugin preparation uses compact float64 geometry and colour buffers.
 - **Automatic setup:** run `Install.cmd` to install the plugin, private Python, extra-format converter and AI dependencies. Ready components are reused on repeat runs.
 - **Responsive SCAN loading:** this release includes background preparation, a progress window with Cancel, and staged geometry assembly. The previous complete model stays visible until its replacement is ready.
 - **Less repeated work:** LOOK weight edits reuse geometry. With Camera-Facing Cards off, camera movement reuses spatial data and updates SH colours as needed; moving lights does not reload the source file.
 - **Checked for motion design:** native Fracture + Plain Effector and Bend were tested across 13 frames, alongside camera/light changes and Redshift previews.
 
-Validated with **222 portable tests on Python 3.10 and 3.12**, plus native cache/update checks in Cinema 4D 2027. Separate fixtures measured about **88% less retained Python source-cloud memory** and **82.8% less retained prepared-buffer memory**; these are not whole-process RAM savings or real-time guarantees. Earlier installation checks include real image-to-3D generation in a fresh Python 3.12 environment. Large scans still take time to load; Camera-Facing Cards intentionally rebuild orientation. See the [validation scope](docs/validation.md) for test conditions and limits.
+Validated with **235 portable tests on Python 3.10 and 3.12**, plus native cache/update checks in Cinema 4D 2027. Separate fixtures measured about **88% less retained Python source-cloud memory** and **82.8% less retained prepared-buffer memory**; these are not whole-process RAM savings or real-time guarantees. Earlier installation checks include real image-to-3D generation in a fresh Python 3.12 environment. Large scans still take time to load; Camera-Facing Cards intentionally rebuild orientation. See the [validation scope](docs/validation.md) for test conditions and limits.
 
 For the tested **`Raspberry.sog`** (approximately 2.37 million splats), the 4-million limit keeps all **2,309,943** splats passing the 1/255 opacity threshold: **97.4% of the source**, without additional reservoir sampling. The remaining splats are opacity-filtered. Larger files can still be sampled, and the Redshift card result is not guaranteed to match a native Gaussian renderer exactly.
 
@@ -73,7 +91,7 @@ Your media stays local. Initial setup downloads dependencies and model weights; 
 
 ## Install
 
-1. Download **[ArgentumSplat-0.7.2-C4D2027-Windows.zip](https://github.com/OlehandroStox/argentum-splat/releases/download/v0.7.2/ArgentumSplat-0.7.2-C4D2027-Windows.zip)**. This is the installer package; GitHub's automatic “Source code” archive is intended for development.
+1. Download **[ArgentumSplat-0.8.0-C4D2027-Windows.zip](https://github.com/OlehandroStox/argentum-splat/releases/download/v0.8.0/ArgentumSplat-0.8.0-C4D2027-Windows.zip)**. This is the installer package; GitHub's automatic “Source code” archive is intended for development.
 2. Extract the ZIP, close Cinema 4D and run **`ArgentumSplat/Install.cmd`**. It installs the plugin, extra-format converter, private Python runtime and AI dependencies automatically. If several C4D preferences folders exist, choose the one you use.
 3. Wait for the setup summary, then start C4D → **Extensions → ArgentumSplat → Argentum Splat**.
 

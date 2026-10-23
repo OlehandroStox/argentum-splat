@@ -114,9 +114,11 @@ class Preparation:
             start = time.perf_counter()
             cloud = self.cloud
             if cloud is None:
+                from . import import_budget
+                import_budget.check_memory(import_budget.source_count(request['path']), request['max_splats'])
                 cloud = core.load(request['path'], max_splats=request['max_splats'],
                     min_opacity=request['min_opacity'], unconverted_coordinates=request['raw_spz'],
-                    progress=self.progress, compact=request['max_splats'] > 262144)
+                    progress=self.progress, compact=True)
                 if request.get('converted_spz'):
                     from dataclasses import replace
                     from .spz import _RUB_RDF_SH_SIGNS

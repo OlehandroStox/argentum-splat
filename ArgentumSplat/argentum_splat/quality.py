@@ -17,7 +17,9 @@ def apply_detail_preset(op):
         doc.AddUndo(c4d.UNDOTYPE_CHANGE, op)
         for key, value in I.SOURCE_FIDELITY.items():
             if key == I.MAX_SPLATS:
-                value = max(int(op[key]), value)
+                # Appearance preset must not override an intentional import
+                # budget, especially MAX (zero) or a LOW memory-saving choice.
+                continue
             elif key == I.MIN_OPACITY:
                 value = min(float(op[key]), value)
             op[key] = value
@@ -32,8 +34,8 @@ def apply_detail_preset(op):
                 "subsurface_weight": op[I.SUBSURFACE],
             }, undo_mode=maxon.nodes.UNDO_MODE.ADD)
         op[I.STATUS] = (
-            "Source Fidelity: up to 4,000,000 splats, full SH, perspective pixel filtering, "
-            "captured colour (Emission 1 / Diffuse 0). Larger scans remain sampled. "
+            "Source Fidelity: import quality preserved; full SH, perspective pixel filtering, "
+            "captured colour (Emission 1 / Diffuse 0). "
             "SH0 files contain fixed highlights, not dynamic glass reflections."
         )
         op.SetDirty(c4d.DIRTYFLAGS_DATA)

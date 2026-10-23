@@ -182,7 +182,7 @@ class CoreTests(unittest.TestCase):
         with self.assertRaises(SplatFormatError):
             load(self.file(ply_header(count=100_000_001)))
         with self.assertRaises(ValueError):
-            load(self.ascii([ROW]), max_splats=0)
+            load(self.ascii([ROW]), max_splats=-1)
         with self.assertRaises(ValueError):
             load(self.ascii([ROW]), min_opacity=math.nan)
         with self.assertRaises(SplatFormatError):

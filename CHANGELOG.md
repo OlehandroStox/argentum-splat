@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.8.0 — Import quality and full-source loading
+
+- Add LOW (250k), MEDIUM (1m), HIGH (4m), MAX (all opacity-eligible splats), and CUSTOM. Presets and Advanced share one saved limit; 0 means Full Source. Preserve existing scene values and Undo.
+- Offer a non-modal quality window before loading a new scan above 4m. Show source counts and estimated additional RAM. Remember the prompt preference per object; older scenes reopen without a new prompt.
+- Remove the 4m retained cap. Keep input validation bounded at 100m records and refuse estimated unsafe allocations with a clear error, never a silent reduction.
+- Keep SPLAT and SPZ source records packed as well as binary Gaussian PLY; avoid sorting a full-source import already in source order. Preserve format precision and cancellation.
+- Source Fidelity now preserves the chosen import budget. Keep SH, viewport point count and AI generation count independent.
+- Camera-framing heuristics are unchanged; interior scans may still need a camera placed inside. Full retention does not guarantee parity with a native Gaussian rasterizer.
+
+
 ## 0.7.2 — SOG orientation and saved-scene compatibility
 
 - New objects map the conventional SOG Y-down frame to Cinema 4D Y-up automatically, including covariance and SH view directions. This prevents the initial camera from viewing cars, bowls and ground scans upside down.

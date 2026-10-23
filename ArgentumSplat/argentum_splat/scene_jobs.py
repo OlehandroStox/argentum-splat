@@ -117,6 +117,13 @@ class InteractiveScan:
         self.error = self.reported_error = ''
         source = key[0]
         try:
+            from . import import_choice
+            if import_choice.offer(self, request):
+                self.queued_request = None
+                return
+            if self.load_key != key and key not in plugin.CLOUD_CACHE:
+                from . import import_budget
+                import_budget.check_memory(import_budget.source_count(source), key[3])
             converted = plugin.converter().needs_conversion(source)
             if converted:
                 cached = assets.resolve_path(self.op, self.op[I.CACHE_FILE])
