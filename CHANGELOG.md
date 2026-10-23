@@ -2,6 +2,9 @@
 
 ## 0.8.0 — Import quality and full-source loading
 
+- Add an offline Help tab with English/Russian language selection and 10 topics. Separate image/video INPUT from 3D SCAN; group manual setup tools and disable estimated-source-camera creation when matching metadata is absent.
+- New objects use 50,000 viewport preview points; saved values are preserved.
+
 - Add LOW (250k), MEDIUM (1m), HIGH (4m), MAX (all opacity-eligible splats), and CUSTOM. Presets and Advanced share one saved limit; 0 means Full Source. Preserve existing scene values and Undo.
 - Offer a non-modal quality window before loading a new scan above 4m. Show source counts and estimated additional RAM. Remember the prompt preference per object; older scenes reopen without a new prompt.
 - Remove the 4m retained cap. Keep input validation bounded at 100m records and refuse estimated unsafe allocations with a clear error, never a silent reduction.

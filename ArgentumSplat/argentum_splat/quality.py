@@ -135,7 +135,7 @@ def source_camera_data(op, require_match=False):
 
 def create_source_camera(op):
     """Create a new editable camera; keep existing cameras in the document."""
-    camera = source_camera_data(op)
+    camera = source_camera_data(op, require_match=True)
     frame = camera["exported_ply"]
     scale = float(op[I.SCALE])
     flip = bool(op[I.FLIP_Y])

@@ -64,6 +64,11 @@ IMPORT_QUALITY = 1094  # virtual view of MAX_SPLATS, never a second source of tr
 IMPORT_PLAN = 1095
 ASK_LARGE_IMPORT = 1096
 IMPORT_APPROVED = 1097
+HELP_LANGUAGE = 1098
+HELP_TOPIC = 1099
+HELP_TEXT = 1100  # virtual, bundled offline manual
+HELP_GROUP = 2007
+SCAN_TOOLS_GROUP = 2008
 # Shared by new objects and the explicit Source Fidelity action. Import limits
 # retain source records; they do not increase the AI model's Gaussian count.
 SOURCE_FIDELITY = {
@@ -76,9 +81,9 @@ DEFAULTS = {
     FILE: "", SPZ_RAW: False,
     COLOR_MODE: 0, HIGHLIGHT: 3.0, GAMMA: 1.0,
     CONTRAST: 0.5, HUE: 0.0, SATURATION: 1.0, LEVEL: 1.0,
-    POINT_PREVIEW: True, PREVIEW_COUNT: 10000, SCALE: 100.0,
+    POINT_PREVIEW: True, PREVIEW_COUNT: 50000, SCALE: 100.0,
     SPLAT_SCALE: 1.0,
-    FLIP_Y: False, STATUS: "Choose an image or a Gaussian PLY / .splat file.",
+    FLIP_Y: False, STATUS: "Use INPUT for an image/video or SCAN for a Gaussian scan.",
     OPACITY: 1.0, IMAGE: "", STEPS: 20, SEED: 1, NUM_GAUSSIANS: 65536,
     OUTPUT_DIR: "", ALPHA_EROSION: 0,
     INPUT_MODE: 0, SOURCE_FRAME: 0,
@@ -86,6 +91,7 @@ DEFAULTS = {
     AUTO_FRAME: True, AUTO_FRAME_SOURCE: "", IMPORT_CAMERA_STATE: "", SOURCE_INFO: "",
     AUTO_SOG_ORIENTATION: True,
     ASK_LARGE_IMPORT: True, IMPORT_APPROVED: '',
+    HELP_LANGUAGE: 0, HELP_TOPIC: 0,
     **SOURCE_FIDELITY,
 }
 GEOMETRY_PARAMETERS = (

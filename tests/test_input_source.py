@@ -5,11 +5,20 @@ import tempfile
 import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "ArgentumSplat"))
-from argentum_splat.input_source import classify, sequence_frame, validate_frame
+from argentum_splat.input_source import classify, classify_media, sequence_frame, validate_frame
 from argentum_splat.job_progress import read_updates
 
 
 class InputSourceTests(unittest.TestCase):
+    def test_input_panel_accepts_media_but_directs_all_scans_to_scan_panel(self):
+        self.assertEqual(classify_media('photo.PNG'), 'image')
+        self.assertEqual(classify_media('clip.MOV'), 'video')
+        self.assertEqual(classify_media('shot_0001.jpg', 1), 'sequence')
+        for suffix in ('PLY', 'SOG', 'SPLAT', 'SPZ', 'KSPLAT'):
+            for mode in (0, 1):
+                with self.assertRaisesRegex(ValueError, 'SCAN > Splat File'):
+                    classify_media('scan.' + suffix, mode)
+
     def test_images(self):
         for ext in ('PNG', 'jpg', 'jpeg', 'webp', 'tif', 'tiff', 'bmp', 'tga', 'gif'):
             self.assertEqual(classify('photo.' + ext), 'image')

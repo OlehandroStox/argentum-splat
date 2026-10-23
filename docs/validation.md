@@ -2,7 +2,9 @@
 
 ## 0.8.0 import-quality validation
 
-**235 portable tests pass on Python 3.10 and 3.12.** Native checks used Cinema 4D 2027.0.0 / Python 3.11.4, Redshift, RTX 4070 12 GB and 32 GB RAM. The plugin was cold-started with the new registration callbacks. Three completed 1280 × 720 Redshift renders returned result 0 and were visually inspected. No manual LOOK or camera correction was applied; LOW and MAX used the same camera.
+**239 portable tests pass on Python 3.10 and 3.12.** Native checks used Cinema 4D 2027.0.0 / Python 3.11.4, Redshift, RTX 4070 12 GB and 32 GB RAM. The plugin was cold-started with the new registration callbacks. Three completed 1280 × 720 Redshift renders returned result 0 and were visually inspected. No manual LOOK or camera correction was applied; LOW and MAX used the same camera.
+
+The final Help/interface update was cold-started separately. Native description checks confirmed a top-level Help tab, Russian/English topic lists, collapsed SCAN Manual Tools, and a 50,000-point new-object/reset default. All 20 help pages switched correctly without starting work or replacing the loaded cloud, spatial/colour arrays or native mesh template. Save/reopen preserved explicit 10,000, 12,345 and 50,000 preview values, plus language/topic selections. Both generation and frame-preview actions reject scans in INPUT before changing the scan or starting a process. Full AI inference was not rerun for this interface update.
 
 | Source / preset | Retained / original | Preparation | Render |
 |---|---:|---:|---:|

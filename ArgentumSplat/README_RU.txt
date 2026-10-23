@@ -37,8 +37,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\Install.ps1 -ImportOnly
 автоматической настройки зависимостей и дождитесь завершения в Status.
 Не устанавливайте несколько копий в разные пути поиска плагинов C4D.
 
-Input File → фото → 65,536 Gaussians / 20 steps / Alpha Erosion 0 →
-Load / Generate from Input. Новые объекты уже используют Source Fidelity:
+Image / Video File → фото → 65,536 Gaussians / 20 steps / Alpha Erosion 0 →
+Generate from Image / Video. Новые объекты уже используют Source Fidelity:
 камера на объект, затем запустить IPR в RS Render View. Для старых объектов
 пресет применяется кнопкой Source Fidelity — Preserve Detail по желанию.
 Auto Prepare Redshift on Import один раз подготавливает Redshift для нового
@@ -60,7 +60,7 @@ Splat File → Initialise / Reload: чтение и вычисления иду�
 геометрия собирается короткими порциями. Окно показывает этап и время.
 Cancel или крестик отменяют операцию; предыдущая готовая модель остаётся.
 Повторный Reload неизменённого файла использует уже подготовленные данные.
-Для удобной работы: Point Preview on, Preview Points 10 000; Camera-Facing
+Для удобной работы: Point Preview on, Preview Points 50 000 (новый объект); Camera-Facing
 Cards off исключает перестройку геометрии при смене ракурса. SH и изменения
 LOOK обновляются после остановки изменений без всплывающего окна; ход работы
 остаётся в Status, отмена доступна через Cancel Processing. Свет не вызывает
@@ -98,3 +98,7 @@ Auto Frame in Empty Scene подбирает начальный кадр в пу
 Frame Loaded Scan создаёт отдельную камеру для уже загруженной модели.
 Source Summary показывает точки, SH, фильтрацию и сокращение по лимиту.
 Существующие камеры и настройки сохранённых объектов не сбрасываются.
+
+Help: отдельная вкладка рядом с Object. Выберите Language / Язык и тему.
+INPUT принимает фото/видео/секвенцию; готовые сканы загружайте через SCAN.
+Вспомогательные кнопки находятся в SCAN > Manual Tools.

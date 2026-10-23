@@ -1,5 +1,9 @@
 # Controls
 
+## In-app Help and simpler panels
+
+The separate **Help** tab beside **Object** contains an offline guide. Choose **Language / Язык → English / Русский**, then a topic. Language changes only the guide and starts no geometry or colour work. **INPUT** accepts image/video/sequence media; **SCAN** accepts existing 3D scans. Manual recovery/framing buttons are grouped under **SCAN → Manual Tools**. New objects use **50,000 Preview Points**; saved objects keep their values.
+
 ## Import quality in 0.8.0
 
 Choose **SCAN → Import Quality** before loading, or use the non-modal choice window for files above 4 million splats.
@@ -22,7 +26,7 @@ This update does not recover authored interior camera positions or turn Redshift
 
 Labels match the plugin's English interface. Decimal LOOK controls increment by **0.1**; type a value for finer precision. Minimum Opacity increments by **0.001**. Existing values and animation keys are not rounded.
 
-## New-object defaults (0.7.1)
+## New-object defaults (0.8.0)
 
 New objects start with **Source Fidelity**: Maximum Splats **4,000,000**, Minimum Opacity **1/255 ≈ 0.00392157**, Camera-Facing Cards **on**, Pixel Footprint **0.075**, SH degree **3**, SH Strength **1**, Normal Smoothing **0**. LOOK starts with **sRGB Source to Scene Linear**, Highlight Limit **3**, Emission **1**, Diffuse **0**, Subsurface **0**. Global Scale **100**, Splat Scale **1** and Opacity Multiplier **1** remain unchanged.
 
@@ -30,13 +34,13 @@ The previous 262,144 import cap could discard most of a detailed scan; the 0.02 
 
 **Existing and duplicated objects keep their saved values.** Apply Source Fidelity explicitly to an older object. It preserves colour correction, scale, axis conversion and a lower opacity threshold. The preset does not reset a deliberately chosen Colour Management mode.
 
-Large imports and camera-facing updates need more time and RAM than a reduced scan. Point Preview stays on at **10,000 points**; it only reduces editor drawing. For draft work, lower Maximum Splats or turn Camera-Facing Cards off, accepting reduced detail or projection accuracy. Choose HIGH or MAX for final retention; Source Fidelity preserves that choice. Gaussian Count controls AI generation separately; the 4-million import limit does not create extra Gaussians.
+Large imports and camera-facing updates need more time and RAM than a reduced scan. Point Preview starts at **50,000 points** for new objects; it only reduces editor drawing. For draft work, lower Maximum Splats or turn Camera-Facing Cards off, accepting reduced detail or projection accuracy. Choose HIGH or MAX for final retention; Source Fidelity preserves that choice. Gaussian Count controls AI generation separately; the 4-million import limit does not create extra Gaussians.
 
 ## Input
 
 | Control | Meaning / when to use it |
 | --- | --- |
-| Input File | Image, existing splat, video or a selected numbered image. File extension selects the pipeline in Auto mode. |
+| Image / Video File | Image, video or a selected numbered image. Auto detects the media type. Existing 3D scans belong in SCAN > Splat File. |
 | Input Mode | Auto for normal files; Numbered Image Sequence to interpret the frame field as an offset from the selected filename. |
 | Source Frame / Sequence Offset | Zero-based decoded frame for video/animated images; numeric filename offset for sequences. `clip.mp4`, 0 = first frame. `shot_0100.png`, 2 = `shot_0102.png`. |
 | Preview Selected Frame | Extract the selected frame and open it in C4D Picture Viewer before generation. |
@@ -45,7 +49,7 @@ Large imports and camera-facing updates need more time and RAM than a reduced sc
 | Seed | Random seed for the prediction. Keep fixed for comparisons; change to explore a different result. |
 | Alpha Erosion | 0–8. Shrinks the alpha mask after background removal. Keep 0 for delicate edges; use a small value to remove a fringe. Applies only to the next generation. |
 | Output Folder | Where generated files are saved. Default: `%LOCALAPPDATA%\ArgentumSplat\generated`. Each job has its own directory. |
-| Load / Generate from Input | Generate from an image/frame, or directly load/convert an existing splat file. |
+| Generate from Image / Video | Generate from one image or selected video/sequence frame. |
 | Cancel Processing | Stop the background worker and its child processes. The progress window's Cancel and close button also cancel. |
 | Set Up AI / Extra Formats | Install the isolated Python AI environment and the optional format converter. Requires internet during setup. |
 | Open Output Folder | Open the output location in Explorer. |
@@ -58,7 +62,7 @@ Scan reading/calculation runs in a worker; C4D geometry is assembled in short UI
 
 | Control | Meaning / when to use it |
 | --- | --- |
-| Splat File | Direct source path for an existing scan. Loading is queued after changes settle; Initialise / Reload starts it immediately or retries a cancelled/failed request. The unified Input File is an alternative. |
+| Splat File | Direct source path for an existing scan. Loading is queued after changes settle; Initialise / Reload starts it immediately or retries a cancelled/failed request. |
 | View-Dependent Colour | Evaluate up to SH1, SH2 or SH3 if the file contains those coefficients. Off keeps the base colour. TripoSplat outputs SH0, so its SH controls are unavailable. |
 | Camera-Facing Cards | Project the Gaussian covariance into the selected camera plane. Off uses the two largest Gaussian axes for each card. Camera-facing mode needs extra work as the camera moves. |
 | Projection Camera | Explicit camera for SH and camera-facing cards. Empty uses the render camera, falling back to the editor camera. Status warns when the override differs from the render camera; clear the link to follow camera switches. |
@@ -70,7 +74,7 @@ Scan reading/calculation runs in a worker; C4D geometry is assembled in short UI
 | Auto Frame in Empty Scene | On for new objects. Once per new source, create a camera when this is the only scene object and no user camera/Projection Camera is selected. Fit robust source bounds and adapt the near clipping plane to size; use matching AI camera metadata when available. Reuse an untouched generated camera for a changed source. Existing scene content and hand-edited cameras block automatic reframing. Source geometry, units and axes stay unchanged. |
 | Frame Loaded Scan | Create and activate a separate editable camera for the loaded model. Preserves earlier cameras. Starts a camera-dependent update using the parsed source; no file reread. |
 | Set Redshift Detail Quality | Raise transparency depth to at least 128, Unified Min Samples to 16 and Max Samples to 128. Disables Automatic Sampling so these floors take effect; sets adaptive thresholds to at most 0.01. Keeps stricter existing settings. Changes the current document only on explicit use; Undo supported. Can increase render time. |
-| Create Estimated Source Camera | Create an editable camera from new AI metadata in adjacent `generation.json`. It is an estimate for square `prepared.png`, not calibrated photo reconstruction. Does not replace the active camera. |
+| Create Estimated Source Camera | Create an editable camera from new AI metadata in adjacent `generation.json`. It is an estimate for square `prepared.png`, not calibrated photo reconstruction. Does not replace the active camera; disabled without matching AI metadata. |
 
 The detail preset matches the new-object quality profile and can use more time and memory than an intentionally reduced import limit. SH3 evaluates only coefficients actually present in the file; it does not add SH to an SH0 model. The preset does not modify the source file or the document's display transform. **Auto Prepare Redshift on Import** applies render depth and sampling once for each new source; the explicit **Set Redshift Detail Quality** button remains available.
 
@@ -112,7 +116,7 @@ Camera movement does not recalculate SH0 colours. With Camera-Facing Cards off, 
 | Point Preview | Draw lightweight coloured points in the editor. Redshift IPR and final rendering still receive the full loaded card geometry. |
 | Preview Points (0 = All) | Limit editor point drawing only. 0 draws all loaded points, after Maximum Splats and opacity filtering. Does not lower full-geometry memory usage. |
 
-For large scans, keep **Point Preview on** and start with **10,000 Preview Points**. Use fewer preview points if drawing is slow. Camera-Facing Cards off avoids geometry updates on camera movement. Maximum Splats controls render-geometry memory and preparation cost; Preview Points controls only editor drawing. Parsing still validates the whole source file, so multi-million-splat files need time on their first load.
+For large scans, keep **Point Preview on** and start with the new default of **50,000 Preview Points**. Use fewer preview points if drawing is slow. Camera-Facing Cards off avoids geometry updates on camera movement. Maximum Splats controls render-geometry memory and preparation cost; Preview Points controls only editor drawing. Parsing still validates the whole source file, so multi-million-splat files need time on their first load.
 
 The C4D plugin keeps binary Gaussian PLY, SPLAT and SPZ source records packed. Prepared positions, card axes, normals and colours use compact float64 buffers for native plugin operation. Separate test fixtures measured about **88% less retained Python source-cloud memory** and **82.8% less retained prepared-buffer memory**. These are component measurements, not a reduction promised for the entire Cinema 4D process: native polygon geometry, materials and renderer memory still matter.
 

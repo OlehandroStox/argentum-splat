@@ -47,7 +47,7 @@ class DefaultFidelityTests(unittest.TestCase):
         self.assertEqual(op[I.SMOOTHING], 0)
         self.assertEqual(op[I.COLOR_MODE], 0)
         self.assertTrue(op[I.POINT_PREVIEW])
-        self.assertEqual(op[I.PREVIEW_COUNT], 10000)
+        self.assertEqual(op[I.PREVIEW_COUNT], 50000)
         self.assertEqual(op[I.NUM_GAUSSIANS], 65536)
 
     def test_clone_init_preserves_custom_values_and_links(self):

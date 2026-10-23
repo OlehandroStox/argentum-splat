@@ -638,6 +638,13 @@ class SplatObject(InteractiveScan, c4d.plugins.ObjectData):
             return bool(self.cloud.metadata.get("sh_degree",0))
         if key == I.SPZ_RAW:
             return str(op[I.FILE] or "").lower().endswith(".spz")
+        if key == I.SOURCE_CAMERA:
+            try:
+                from . import quality
+                quality.source_camera_data(op, require_match=True)
+                return self.job is None
+            except Exception:
+                return False
         if key == I.CANCEL:
             return self.job is not None
         if key in (I.INITIALISE,I.GENERATE,I.SETUP,I.PREVIEW_SOURCE,I.IMAGE,I.INPUT_MODE,
@@ -650,6 +657,9 @@ class SplatObject(InteractiveScan, c4d.plugins.ObjectData):
         key = descid[0].id
         if key == I.IMPORT_QUALITY:
             value = import_budget.preset_for(op.GetDataInstance().GetInt32(I.MAX_SPLATS))
+        elif key == I.HELP_TEXT:
+            from . import help_content
+            value = help_content.text(op[I.HELP_LANGUAGE], op[I.HELP_TOPIC])
         elif key == I.IMPORT_PLAN:
             try:
                 path = assets.resolve_path(op, op[I.FILE])
@@ -665,6 +675,13 @@ class SplatObject(InteractiveScan, c4d.plugins.ObjectData):
         return True, value, flags | c4d.DESCFLAGS_GET_PARAM_GET
 
     def SetDParameter(self, op, descid, value, flags):
+        if descid[0].id in (I.HELP_LANGUAGE, I.HELP_TOPIC):
+            key = descid[0].id
+            from . import help_content
+            maximum = 1 if key == I.HELP_LANGUAGE else len(help_content.TOPICS[0]) - 1
+            op.GetDataInstance().SetInt32(key, max(0, min(maximum, int(value))))
+            op.SetDirty(c4d.DIRTYFLAGS_DATA | c4d.DIRTYFLAGS_DESCRIPTION)
+            return True, flags | c4d.DESCFLAGS_SET_PARAM_SET
         if descid[0].id == I.IMPORT_QUALITY:
             from . import import_budget
             # CUSTOM keeps the exact existing Advanced value; preset selection
@@ -766,23 +783,11 @@ class SplatObject(InteractiveScan, c4d.plugins.ObjectData):
         require_idle()
         image = Path(document_path(self.op,self.op[I.IMAGE]))
         if not image.is_file():
-            raise ValueError("Choose an input image, video or splat file first.")
+            raise ValueError("Choose an image or video in INPUT. Use SCAN > Splat File for a 3D scan.")
         mode = int(self.op[I.INPUT_MODE] or 0)
         frame = int(self.op[I.SOURCE_FRAME] or 0)
-        kind = input_source.classify(image, mode)
+        kind = input_source.classify_media(image, mode)
         input_source.validate_frame(frame)
-        if kind == 'splat':
-            if preview_only:
-                raise ValueError('This is a 3D splat file. Click Load / Generate from Input to load it.')
-            doc = self.op.GetDocument()
-            doc.StartUndo()
-            try:
-                doc.AddUndo(c4d.UNDOTYPE_CHANGE, self.op)
-                self.op[I.FILE] = str(image.resolve())
-                self.initialise()
-            finally:
-                doc.EndUndo()
-            return
         if kind == 'sequence':
             input_source.sequence_frame(image, frame)
         marker = RUNTIME/"runtime.json"

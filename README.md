@@ -105,9 +105,11 @@ Your media stays local. Initial setup downloads dependencies and model weights; 
 
 After the initial runtime download:
 
-1. Select an image in **Input File**. Start with one clear, fully visible object.
+Use **Help → Language / Язык** for an offline English or Russian guide. **INPUT** is for image/video; **SCAN** is for existing 3D scans. Manual framing/recovery buttons are under **SCAN → Manual Tools**. New objects draw up to 50,000 preview points.
+
+1. Select an image in **Image / Video File**. Start with one clear, fully visible object.
 2. Use **65,536 Gaussians**, **20 steps**, **Alpha Erosion = 0** for a first test.
-3. Click **Load / Generate from Input**. The progress window shows the current stage; **Cancel** stops background work.
+3. Click **Generate from Image / Video**. The progress window shows the current stage; **Cancel** stops background work.
 4. New objects already use **Source Fidelity** settings. **Auto Frame in Empty Scene** creates a fitted camera on first load in an otherwise empty scene. In an existing scene, use your camera or click **Frame Loaded Scan** for a separate overview. For an older object, **Source Fidelity – Preserve Detail** applies the quality preset explicitly.
 5. Start rendering in **RS Render View**. **Auto Prepare Redshift on Import** sets transparency depth and sampling for each new source. Turn it off to keep full manual control; **Set Redshift Detail Quality** remains available for an explicit reset.
 

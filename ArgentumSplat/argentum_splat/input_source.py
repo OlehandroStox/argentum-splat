@@ -37,6 +37,13 @@ def classify(path, mode=0):
     raise ValueError('Unsupported input. Use PNG/JPG/WebP/TIFF/BMP/TGA/GIF, a video, or PLY/SPLAT/SPZ/SOG/KSPLAT.')
 
 
+def classify_media(path, mode=0):
+    """The INPUT panel accepts media; existing 3D scans belong in SCAN."""
+    if Path(path).suffix.lower() in SPLAT_EXTENSIONS:
+        raise ValueError('This is a 3D scan. Select it in SCAN > Splat File, then use Initialise / Reload.')
+    return classify(path, mode)
+
+
 def validate_frame(index):
     if isinstance(index, bool) or not isinstance(index, int) or not 0 <= index <= MAX_FRAME:
         raise ValueError('Source Frame must be an integer from 0 to 99,999.')
