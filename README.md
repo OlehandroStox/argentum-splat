@@ -3,7 +3,7 @@
 <h1 align="center">Argentum Splat</h1>
 <p align="center"><strong>Free Gaussian Splatting plugin for Cinema 4D 2027 and Redshift.</strong><br>Generate 3D from an image, import scans and work with them in Cinema 4D.</p>
 <p align="center">
-  <a href="https://github.com/OlehandroStox/argentum-splat/releases/download/v0.8.1/ArgentumSplat-0.8.1-C4D2027-Windows.zip"><strong>Download 0.8.1 for Windows</strong></a> ·
+  <a href="https://github.com/OlehandroStox/argentum-splat/releases/download/v0.8.2/ArgentumSplat-0.8.2-C4D2027-Windows.zip"><strong>Download 0.8.2 for Windows</strong></a> ·
   <a href="#install">Install</a> ·
   <a href="README.ru.md">Русский</a> ·
   <a href="https://boosty.to/olehandrostox/donate">Support the author</a>
@@ -33,7 +33,7 @@ Media is processed locally. No paid API key or plugin subscription is required.
 
 ## Install
 
-1. [Download the ZIP](https://github.com/OlehandroStox/argentum-splat/releases/download/v0.8.1/ArgentumSplat-0.8.1-C4D2027-Windows.zip) and extract it.
+1. [Download the ZIP](https://github.com/OlehandroStox/argentum-splat/releases/download/v0.8.2/ArgentumSplat-0.8.2-C4D2027-Windows.zip) and extract it.
 2. Close Cinema 4D and run **ArgentumSplat/Install.cmd**. The installer sets up the plugin, private Python and required components.
 3. Start Cinema 4D → **Extensions → ArgentumSplat → Argentum Splat**.
 
@@ -43,7 +43,7 @@ Media is processed locally. No paid API key or plugin subscription is required.
 
 ## First steps
 
-**Development prerelease:** [Download 0.8.2-dev for Windows](https://github.com/OlehandroStox/argentum-splat/releases/download/v0.8.2-dev/ArgentumSplat-0.8.2-dev-C4D2027-Windows.zip). This branch includes automatic SOG import improvements. Validation is incomplete; dense, nearly coplanar transparent layers can still show bright patches in Redshift. See the [changelog](CHANGELOG.md) before updating.
+**0.8.2:** bounded native geometry updates, safer cancellation and memory checks, reuse across duplicate scans, and a corrected SuperSplat opacity profile. See the [changelog](CHANGELOG.md) and [rendering compatibility](docs/rendering-compatibility.md). Dense transparency and color-compositing differences in Redshift remain documented limitations.
 
 **From a photo or video:** choose a file in **INPUT**, optionally select a frame, then click **Generate from Image / Video**. Wait for **Ready** in Status and render with Redshift.
 

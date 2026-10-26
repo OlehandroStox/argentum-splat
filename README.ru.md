@@ -3,7 +3,7 @@
 <h1 align="center">Argentum Splat</h1>
 <p align="center"><strong>Бесплатный Gaussian Splatting плагин для Cinema 4D 2027 и Redshift.</strong><br>Создавайте 3D по изображению, импортируйте сканы и работайте с ними в Cinema 4D.</p>
 <p align="center">
-  <a href="https://github.com/OlehandroStox/argentum-splat/releases/download/v0.8.1/ArgentumSplat-0.8.1-C4D2027-Windows.zip"><strong>Скачать 0.8.1 для Windows</strong></a> ·
+  <a href="https://github.com/OlehandroStox/argentum-splat/releases/download/v0.8.2/ArgentumSplat-0.8.2-C4D2027-Windows.zip"><strong>Скачать 0.8.2 для Windows</strong></a> ·
   <a href="#установка">Установка</a> ·
   <a href="README.md">English</a> ·
   <a href="https://boosty.to/olehandrostox/donate">Поддержать автора</a>
@@ -11,7 +11,7 @@
 
 ## Пример результата
 
-**Предварительная сборка:** [Скачать 0.8.2-dev для Windows](https://github.com/OlehandroStox/argentum-splat/releases/download/v0.8.2-dev/ArgentumSplat-0.8.2-dev-C4D2027-Windows.zip). В этой ветке улучшен автоматический импорт SOG. Проверка ещё не завершена: плотные, почти совпадающие прозрачные слои могут давать яркие пятна в Redshift. Подробности — в [списке изменений](CHANGELOG.md).
+**0.8.2:** уменьшены задержки создания геометрии, исправлены отмена и повторные загрузки, добавлены проверки памяти и исправлен профиль прозрачности SuperSplat. Подробности — в [списке изменений](CHANGELOG.md) и [описании ограничений рендера](docs/rendering-compatibility.ru.md). Различия смешивания цвета и плотных прозрачных слоёв в Redshift остаются.
 
 | Исходное изображение | Рендер Cinema 4D / Redshift |
 | --- | --- |
@@ -35,7 +35,7 @@
 
 ## Установка
 
-1. [Скачайте ZIP](https://github.com/OlehandroStox/argentum-splat/releases/download/v0.8.1/ArgentumSplat-0.8.1-C4D2027-Windows.zip) и распакуйте его.
+1. [Скачайте ZIP](https://github.com/OlehandroStox/argentum-splat/releases/download/v0.8.2/ArgentumSplat-0.8.2-C4D2027-Windows.zip) и распакуйте его.
 2. Закройте Cinema 4D и запустите **ArgentumSplat/Install.cmd**. Установщик подготовит плагин, отдельный Python и необходимые компоненты.
 3. Откройте Cinema 4D → **Extensions → ArgentumSplat → Argentum Splat**.
 

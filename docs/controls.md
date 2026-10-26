@@ -119,7 +119,7 @@ For large scans, keep **Point Preview on** and start with the new default of **5
 | Control | Meaning |
 | --- | --- |
 | Global Scale | Scale the whole model. |
-| Pixel Footprint (variance; 0 = Off) | Image-space filtering for perspective Camera-Facing Cards. Default 0.075 preserves a small footprint for thin details; 0 disables filtering. Range 0–2, step 0.025. Higher values broaden the projected splats and can soften detail. |
+| Pixel Footprint (variance; 0 = Off) | Image-space filtering for perspective and parallel Camera-Facing Cards. Default 0.075 preserves a small footprint for thin details; 0 disables filtering. Range 0–2, step 0.025. Higher values broaden the projected splats and can soften detail. |
 | Splat Scale | Change card sizes without moving their centres. Oversizing can blur details; undersizing can create holes. |
 | Maximum Splats | Retain up to this many opacity-eligible splats; above the limit, take a deterministic uniform sample across the input file. Default 0 (Full Source); this retains existing splats rather than generating new ones. Loading/filter changes queue a new load after changes settle; Initialise / Reload starts it immediately. |
 | Minimum Opacity | Discard nearly transparent splats on load. Default 1/255 (about 0.00392157). Lower values retain fine details but may increase memory/render work. |
@@ -133,7 +133,7 @@ For large scans, keep **Point Preview on** and start with the new default of **5
 
 SH and camera-facing calculations occur before deformers/effectors, not separately for each deformed segment or reflected ray.
 
-**Pixel Footprint** adds variance measured in pixel squared to the projected Gaussian shape. Use Camera-Facing Cards with a perspective camera, start at **0.075**, and compare fine edges at the intended final resolution. Camera pose, lens, output resolution and pixel aspect affect the result. The filter uses render-output settings, not the viewport window's size. Other C4D camera projection types keep the previous card path. This can preserve thin features that already exist in the loaded splats; it adds no artificial fur and cannot recover splats removed by sampling or opacity filtering.
+**Pixel Footprint** adds variance measured in pixel squared to the projected Gaussian shape. Use Camera-Facing Cards with a classic or native Redshift perspective/parallel camera, start at **0.075**, and compare fine edges at the intended final resolution. Camera pose, lens, output resolution and pixel aspect affect the result. Film Offset/RS Sensor Shift also moves the visible frame used for culling. Parallel cameras use one SH viewing direction, including when Camera-Facing Cards is off. The filter uses render-output settings, not the viewport window's size. Fixed front/side, oblique and other uncalibrated projection types keep the previous card path. This can preserve thin features that already exist in the loaded splats; it adds no artificial fur and cannot recover splats removed by sampling or opacity filtering.
 
 ## Moving a project
 
@@ -144,6 +144,8 @@ The procedural object needs the plugin on the other machine. Make Editable produ
 ## Appearance and performance
 
 A scan stores its shape, colour and transparency. Website cameras, backgrounds and post-effects are separate settings. Redshift uses polygon cards and may differ from a Gaussian viewer. Compare finished renders at the same camera and resolution.
+
+The 0.8.2 opacity profile matches SuperSplat's normalized Gaussian falloff. Existing unmodified built-in shaders migrate; custom shader code is preserved. Linear-light compositing, finite transparency depth and close card intersections still limit visual parity. See [rendering compatibility](rendering-compatibility.md).
 
 Camera-Facing Cards are prepared for one camera. For MoGraph movement across the frame, mirrors or secondary views, turn this option off to retain oriented cards, accepting less accurate projection. During an update, IPR can temporarily show the previous view; wait for **Ready** before judging the result.
 

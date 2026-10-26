@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.8.2 — Import scheduling, viewport responsiveness and source validation
+
+- Build native points incrementally instead of retaining millions of temporary Vector objects and committing them in one call. Card batches target 4 ms, up to 256 cards; native allocation and cloning remain indivisible.
+- Select visible cards in the cancellable worker. Reuse unchanged point-preview buffers and prepared data held by other live scan objects.
+- Yield briefly at worker checkpoints so CPU-heavy preparation continues to deliver host timers, UI progress and cancellation without changing Python's process-wide scheduler.
+- Resolve actual SH degree without replacing the job request captured by the mesh builder. This avoids a second full import when the first material is created and unnecessary SH0 view updates.
+- Keep Cancel effective across camera movement; explicit Reload or a source/control change can resume processing. Do not hide worker failures behind camera retargeting.
+- Keep automatic framing diagnostics local to each scene when source analysis is reused.
+- Recheck available RAM against actual visible card allocations after CPU preparation and before attribute-refresh mesh cloning; preserve the previous complete model on refusal.
+- Correct parallel-camera SH direction and cache invalidation.
+- Respect Film Offset and RS Sensor Shift when culling projected cards; use evaluated native Redshift camera intrinsics for perspective and parallel projection.
+- Match SuperSplat's normalized Gaussian opacity tails and center opacity, with a unique OSL kernel and safe migration of unchanged built-in shaders. Preserve hand-edited shaders.
+- Trim card boundaries to the corrected opacity cutoff while preserving the UV mapping and visible Gaussian footprint; avoid tracing shader-zero borders.
+- Harden release packaging against caches, private configuration, dependencies and model weights.
+
+### Compatibility
+
+The Gaussian profile changes the appearance of saved scenes using the unchanged built-in shader. Redshift still uses editable polygon cards: dense/coplanar intersections, finite transparency depth, color compositing and camera publishing effects can differ from a dedicated Gaussian renderer. This release does not promise identical output in every scene. See [rendering compatibility](docs/rendering-compatibility.md).
+
 ## 0.8.2-dev — Automatic SOG views
 
 - Use full source retention by default, without the optional import-quality prompt; preserve saved/manual limits and memory checks.

@@ -257,6 +257,36 @@ class GeometryTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             g.prepare_colors(core.SplatCloud([splat()], 1), {}, centers=[])
 
+    def test_support_boundary_retains_normalized_shader_cutoff(self):
+        # Evaluate the shader's forward expression, independently of the
+        # inverse used to size geometry. The outward tolerance must retain the
+        # last visible sample without keeping a meaningful transparent border.
+        def shader_alpha(opacity, x, y=0.):
+            floor = math.exp(-4.)
+            falloff = max(0., (math.exp(-4.5*(x*x+y*y))-floor)/(1.-floor))
+            return min(1., max(0., opacity))*falloff
+
+        for opacity in (.004, .01, .5, 1.):
+            with self.subTest(opacity=opacity):
+                support = g.gaussian_support(opacity)
+                self.assertGreater(shader_alpha(opacity, support-2e-6), 1./255.)
+                self.assertLess(shader_alpha(opacity, support), 1./255.)
+                # The cut is the bounding square of a radial field: an edge
+                # or corner outside it cannot contain any visible sample.
+                for y in (0., support*.5, support, 1.):
+                    self.assertLess(shader_alpha(opacity, support+1e-8, y), 1./255.)
+                old = min(1., math.sqrt(2.*math.log(opacity*255.)/9.)+1e-6)
+                self.assertLess(support, old)
+
+    def test_support_zero_area_cutoff_clamping_and_tighter_opaque_bound(self):
+        for opacity in (-1., 0., 1./255.-1e-12, 1./255.):
+            self.assertEqual(g.gaussian_support(opacity), 0.)
+        self.assertGreater(g.gaussian_support(1./255.+1e-12), 0.)
+        self.assertEqual(g.gaussian_support(2.), g.gaussian_support(1.))
+        # Fully opaque cards lose over 15% of their empty bounding-square area
+        # compared with the old full 3-sigma extent.
+        self.assertLess(g.gaussian_support(1.)**2, .85)
+
 
 if __name__ == "__main__":
     unittest.main()

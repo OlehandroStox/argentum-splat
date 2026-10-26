@@ -4,7 +4,7 @@
 
 ## Install the plugin
 
-Download **ArgentumSplat-0.8.1-C4D2027-Windows.zip** from [Releases](https://github.com/OlehandroStox/argentum-splat/releases), extract it, and close Cinema 4D. Run `ArgentumSplat/Install.cmd` from the extracted folder. Do not run it inside the ZIP viewer.
+Download **ArgentumSplat-0.8.2-C4D2027-Windows.zip** from [Releases](https://github.com/OlehandroStox/argentum-splat/releases), extract it, and close Cinema 4D. Run `ArgentumSplat/Install.cmd` from the extracted folder. Do not run it inside the ZIP viewer.
 
 The installer copies the plugin, sets up the extra-format converter, and prepares the private Python/AI environment and model weights. **You do not need to install Python or Node.js manually.** Choose your preferences folder if more than one C4D 2027 installation is found, then wait for the final summary. If no preferences folder exists yet, launch C4D 2027 once and close it before installing.
 

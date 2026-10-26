@@ -11,12 +11,34 @@ import c4d
 from . import assets, loading, ids as I
 
 
+def resolved_request(request, cloud):
+    """Replace conservative pre-read SH keys with the decoded source degree.
+
+    Do not change the camera/values used for the calculation. Before a first
+    publication no live cloud is available to request_snapshot(), so it assumes
+    SH3. Resolving both requests avoids treating discovered SH0/SH1 as a user
+    edit or restarting camera-independent work during an orbit.
+    """
+    if cloud is None:
+        return request
+    degree = cloud.metadata.get('effective_sh_degree', cloud.metadata.get('sh_degree', 0))
+    spatial, color = loading.preparation_keys(request['source_key'], request['values'],
+        request['camera'], degree, request['color_key'][3])
+    # Assembly holds this same dictionary across UI yields and adds the newly
+    # created material. Replacing it on a later timer tick detaches that write,
+    # making the next poll mistake our own material for an external user edit.
+    request.update(spatial_key=spatial, color_key=color,
+        key=(spatial, color, request['opacity'], request['weights'], request['material']))
+    return request
+
+
 class InteractiveScan:
     def scan_state(self):
         if hasattr(self, 'ready_request'):
             return
         self.ready_request = None
         self.blocked_request = None
+        self.cancelled_non_view = None
         self.queued_request = None
         self.queued_at = 0.
         self.mesh_template = None
@@ -59,8 +81,13 @@ class InteractiveScan:
             request = self.request_snapshot()
             if request['source_key'] is None:
                 self.queued_request = None
+                self.cancelled_non_view = None
                 return c4d.BaseObject(c4d.Onull)
-            if request['key'] not in (self.ready_request, self.blocked_request):
+            cancelled = getattr(self, 'cancelled_non_view', None)
+            same_cancelled_controls = cancelled is not None and cancelled == loading.non_view_key(request)
+            if cancelled is not None and not same_cancelled_controls:
+                self.cancelled_non_view = None
+            if not same_cancelled_controls and request['key'] not in (self.ready_request, self.blocked_request):
                 if self.queued_request is None or self.queued_request['key'] != request['key']:
                     self.queued_request = request
                     self.queued_at = time.monotonic()
@@ -108,11 +135,16 @@ class InteractiveScan:
         key = request['source_key']
         if key is None:
             self.queued_request = None
+            self.cancelled_non_view = None
             if explicit:
                 raise ValueError('Choose a local Gaussian PLY, SPLAT, SOG, SPZ or KSPLAT file first.')
             return
-        if not explicit and request['key'] == self.blocked_request:
-            return
+        if not explicit:
+            if (request['key'] == self.blocked_request or
+                    loading.non_view_key(request) == getattr(self, 'cancelled_non_view', None)):
+                self.queued_request = None
+                return
+        self.cancelled_non_view = None
         self.blocked_request = None
         self.error = self.reported_error = ''
         source = key[0]
@@ -121,9 +153,16 @@ class InteractiveScan:
             if import_choice.offer(self, request):
                 self.queued_request = None
                 return
-            if self.load_key != key and key not in plugin.CLOUD_CACHE:
+            owners = [self] + [other for other in list(getattr(plugin, 'INSTANCES', ()))
+                if other is not self and getattr(other, 'load_key', None) == key]
+            cloud = self.cloud if self.load_key == key else plugin.CLOUD_CACHE.get(key)
+            if cloud is None:
+                cloud = next((other.cloud for other in owners
+                    if getattr(other, 'load_key', None) == key and getattr(other, 'cloud', None) is not None), None)
+            if cloud is None:
                 from . import import_budget
                 import_budget.check_memory(import_budget.source_count(source), key[3])
+            request = resolved_request(request, cloud)
             converted = plugin.converter().needs_conversion(source)
             if converted:
                 cached = assets.resolve_path(self.op, self.op[I.CACHE_FILE])
@@ -142,17 +181,34 @@ class InteractiveScan:
                 self.set_progress('Ready — source unchanged; using the prepared scan.', 1.)
                 self.close_progress()
                 return
-            cloud = self.cloud if self.load_key == key else plugin.CLOUD_CACHE.get(key)
             spatial = self.spatial if self.spatial_key == request['spatial_key'] else None
             colors = self.colors if self.color_key == request['color_key'] else None
+            bounds = self.bounds if spatial is not None else None
+            analysis = None
+            # An open generator can outlive the small global source cache.
+            # Reuse its immutable buffers, as the synchronous render path does.
+            for other in owners:
+                if getattr(other, 'cloud', None) is not cloud or cloud is None:
+                    continue
+                if analysis is None:
+                    analysis = getattr(other, 'source_analysis', None)
+                    if analysis is not None and other is not self:
+                        # Source measurements can be shared; framing outcomes
+                        # belong to one object/document and are mutated later.
+                        analysis = {key: value for key, value in analysis.items()
+                                    if key not in ('framing', 'frame_warning')}
+                if spatial is None and getattr(other, 'spatial_key', None) == request['spatial_key']:
+                    spatial, bounds = other.spatial, other.bounds
+                if colors is None and getattr(other, 'color_key', None) == request['color_key']:
+                    colors = other.colors
             worker_request = dict(path=path, max_splats=key[3], min_opacity=key[4], raw_spz=key[5],
                 values=request['values'], camera=request['camera'],
                 converted_spz=converted and source.lower().endswith('.spz') and not key[5])
             from . import scene_setup
-            worker_request['analysis'] = getattr(self,'source_analysis',None) if cloud is not None and cloud is self.cloud else None
+            worker_request['analysis'] = analysis
             worker_request['analyse_only'] = scene_setup.needs_initial_analysis(self.op,key)
             worker = loading.Preparation(worker_request, cloud, spatial, colors,
-                                         self.bounds if spatial is not None else None)
+                                         bounds)
             self.job = dict(kind='scan', worker=worker, request=request, dir=Path(path).parent,
                             started=time.perf_counter(), builder=None, last_progress=0.,
                             cancel_reason=None, max_slice_seconds=0.,
@@ -175,9 +231,11 @@ class InteractiveScan:
         self.job['cancel_reason'] = 'superseded' if superseded else 'user'
         if not superseded:
             try:
-                self.blocked_request = self.request_snapshot()['key']
+                request = self.request_snapshot()
             except (OSError, ReferenceError):
-                self.blocked_request = self.job['request']['key']
+                request = self.job['request']
+            self.blocked_request = request['key']
+            self.cancelled_non_view = loading.non_view_key(request)
             self.queued_request = None
         if notify and self.op and plugin_document_open(self.op):
             self.set_progress('Cancelling… keeping the previous complete model.', None)
@@ -212,6 +270,14 @@ class InteractiveScan:
             current = self.request_snapshot()
         except (OSError, ValueError):
             current = None
+        # The reader may have learned the actual SH degree since the request
+        # began. Resolve keys before deciding whether any work is obsolete.
+        data = worker.result or {}
+        cloud = data.get('cloud', worker.cloud)
+        if cloud is not None:
+            job['request'] = resolved_request(job['request'], cloud)
+            if current is not None and current['source_key'] == job['request']['source_key']:
+                current = resolved_request(current, cloud)
         if not job['cancel_reason'] and (current is None or
                 loading.non_view_key(current) != loading.non_view_key(job['request'])):
             self.cancel_scan(notify=False, superseded=True)
@@ -226,6 +292,16 @@ class InteractiveScan:
                     self.set_progress('Cancelled. Previous complete model preserved.', None)
                 else:
                     self.set_progress('Waiting for changes to settle…', None)
+            return
+        # A real failure must not be swallowed by camera retargeting. Only our
+        # deliberate preparation cancellation is eligible for a view restart.
+        if worker.done.is_set() and worker.error is not None and not (
+                job.get('retargeting') and isinstance(worker.error, loading.Cancelled)):
+            self.blocked_request = current['key'] if current is not None else job['request']['key']
+            self.queued_request = None
+            self.release_scan()
+            if not isinstance(worker.error, loading.Cancelled):
+                raise RuntimeError(str(worker.error))
             return
         # Never publish camera-dependent cards as Ready for a different view.
         # Let file reading finish, then cancel obsolete arithmetic once the
@@ -253,13 +329,6 @@ class InteractiveScan:
             if time.monotonic()-job['last_progress'] >= .15:
                 self.set_progress(*worker.status)
                 job['last_progress'] = time.monotonic()
-            return
-        if worker.error is not None:
-            self.blocked_request = job['request']['key']
-            self.queued_request = None
-            self.release_scan()
-            if not isinstance(worker.error, loading.Cancelled):
-                raise RuntimeError(str(worker.error))
             return
         if worker.result.get('analyse_only'):
             from . import scene_setup
@@ -351,6 +420,11 @@ class InteractiveScan:
         prepared = spatial+(colors,)
         if (self.mesh_template is not None and self.ready_request is not None
                 and request['spatial_key'] == self.ready_request[0]):
+            # Attribute-only updates still allocate an owned mesh and a later
+            # display copy. Admit them against current free RAM just like new
+            # geometry, before entering the indivisible native clone call.
+            from . import import_budget
+            import_budget.check_card_memory(self.mesh_template.GetPolygonCount())
             mesh = self.mesh_template.GetClone(c4d.COPYFLAGS_NONE)
             previous = self.ready_request
             weights = tuple(name for index,name in enumerate(
@@ -359,10 +433,12 @@ class InteractiveScan:
             steps = plugin.update_mesh_steps(mesh, cloud, prepared, request['opacity'], request['values'],
                 update_colors=previous[1] != request['color_key'],
                 update_opacity=previous[2] != request['opacity'], update_weights=weights,
-                material=request['material'], update_material=previous[4] != request['material'])
+                material=request['material'], update_material=previous[4] != request['material'],
+                indices=data.get('card_indices'))
         else:
             steps = plugin.build_mesh_steps(cloud, prepared, request['material'],
-                                             request['opacity'], request['values'])
+                                             request['opacity'], request['values'],
+                                             indices=data.get('card_indices'))
         while True:
             try:
                 stage, done, count = next(steps)
@@ -389,7 +465,7 @@ class InteractiveScan:
         self.spatial_key, self.color_key = request['spatial_key'], request['color_key']
         self.prepared = self.spatial+(self.colors,)
         self.prepare_key = (self.spatial_key,self.color_key)
-        self.cache_key = self.draw_key = None
+        self.cache_key = None
         self.mesh_template = mesh
         self.ready_request = request['key']
         self.display_key = None

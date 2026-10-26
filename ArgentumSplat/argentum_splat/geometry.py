@@ -250,12 +250,15 @@ def _compile_projection(projection, pixel_variance):
     scale_x, scale_y = (float(projection[key]) for key in scale_keys)
     if not all(math.isfinite(v) and v > 0. for v in (scale_x, scale_y)):
         raise ValueError("Projection focal lengths or pixel scales must be positive and finite.")
+    offset_x, offset_y = (float(projection.get(key, 0.)) for key in ('offset_x', 'offset_y'))
+    if not all(math.isfinite(v) for v in (offset_x, offset_y)):
+        raise ValueError("Projection image offsets must be finite.")
     normal = norm(cross(norm(basis[0]), norm(basis[1])))
     if dot(normal, basis[2]) > 0.:
         normal = mul(normal, -1.)
     hidden = ((0., 0., 0.), (0., 0., 0.), normal)
     return (basis[0], basis[1], inverse, orthographic, scale_x, scale_y, pixel_variance,
-            float(projection['width']), float(projection['height']), hidden)
+            float(projection['width']), float(projection['height']), offset_x, offset_y, hidden)
 
 
 def _projected_axes(axes, center, camera, projection):
@@ -268,7 +271,8 @@ def _projected_axes(axes, center, camera, projection):
     Never fall back to a tilted card behind the projection camera: a large
     background Gaussian can then intersect rays in front of that camera.
     """
-    right, up, inverse, orthographic, scale_x, scale_y, pixel_variance, width, height, hidden = projection
+    (right, up, inverse, orthographic, scale_x, scale_y, pixel_variance,
+     width, height, offset_x, offset_y, hidden) = projection
     relative = (center[0]-camera[0], center[1]-camera[1], center[2]-camera[2])
     x, y, z = (dot(row, relative) for row in inverse)
     if not all(math.isfinite(v) for v in (x, y, z)) or z <= 1e-8:
@@ -284,8 +288,12 @@ def _projected_axes(axes, center, camera, projection):
                      for a in axes]
     else:
         world_pixel_x, world_pixel_y = z/scale_x, z/scale_y
-        if (abs(x) > (width*.5 + support_limit)*world_pixel_x or
-                abs(y) > (height*.5 + support_limit)*world_pixel_y):
+        screen_x, screen_y = x, y
+        if offset_x or offset_y:
+            screen_x += offset_x*world_pixel_x
+            screen_y += offset_y*world_pixel_y
+        if (abs(screen_x) > (width*.5 + support_limit)*world_pixel_x or
+                abs(screen_y) > (height*.5 + support_limit)*world_pixel_y):
             return hidden
         slope_x, slope_y = x/z, y/z
         projected = []
@@ -319,8 +327,12 @@ def _projected_axes(axes, center, camera, projection):
     cosine, sine = math.cos(angle), math.sin(angle)
     half_x = 3.*(major*abs(cosine) + minor*abs(sine))
     half_y = 3.*(major*abs(sine) + minor*abs(cosine))
-    if (abs(x/world_pixel_x) - half_x > width*.5 or
-            abs(y/world_pixel_y) - half_y > height*.5):
+    screen_x, screen_y = x/world_pixel_x, y/world_pixel_y
+    if offset_x or offset_y:
+        screen_x += offset_x
+        screen_y += offset_y
+    if (abs(screen_x) - half_x > width*.5 or
+            abs(screen_y) - half_y > height*.5):
         return hidden
     u = tuple(3.*major*(right[i]*(cosine*world_pixel_x) + up[i]*(sine*world_pixel_y))
               for i in range(3))
@@ -490,6 +502,21 @@ def prepare_colors(cloud, settings, camera=(0., 0., -500.), centers=None, progre
     flip_y = settings.get("flip_y", False)
     degree = settings.get("sh_degree", 0)
     strength = settings.get("sh_strength", 1.)
+    # Orthographic rays share the camera's forward direction. Using the vector
+    # from its arbitrary position to each splat gives different highlights
+    # across a flat image and changes colour when the camera merely pans.
+    direction_override = settings.get('sh_direction')
+    projection = settings.get('projection')
+    if direction_override is None and projection and projection.get('orthographic'):
+        direction_override = projection['forward']
+    if degree and strength and direction_override is not None:
+        direction_override = tuple(float(v) for v in direction_override)
+        if (len(direction_override) != 3 or
+                not all(math.isfinite(v) for v in direction_override) or
+                not any(direction_override)):
+            raise ValueError('Orthographic SH direction must be a finite nonzero three-component vector.')
+        if flip_y:
+            direction_override = (direction_override[0], -direction_override[1], direction_override[2])
     correction = dict(gamma=settings.get("gamma", 1.),
         contrast=settings.get("contrast", .5), hue=settings.get("hue", 0.),
         saturation=settings.get("saturation", 1.), level=settings.get("level", 1.),
@@ -502,11 +529,14 @@ def prepare_colors(cloud, settings, camera=(0., 0., -500.), centers=None, progre
             progress('Prepare colour', index, len(cloud.splats))
         # Graphdeco convention: view direction is camera -> splat in source coordinates.
         if degree and strength and splat.sh:
-            center = (centers[index] if centers is not None else
-                      core.transform_position(splat.position, scale, flip_y))
-            direction = (center[0]-camera[0], center[1]-camera[1], center[2]-camera[2])
-            if flip_y:
-                direction = (direction[0], -direction[1], direction[2])
+            if direction_override is not None:
+                direction = direction_override
+            else:
+                center = (centers[index] if centers is not None else
+                          core.transform_position(splat.position, scale, flip_y))
+                direction = (center[0]-camera[0], center[1]-camera[1], center[2]-camera[2])
+                if flip_y:
+                    direction = (direction[0], -direction[1], direction[2])
             # evaluate_sh already performs robust normalization. Preserve the
             # previous fallback when the camera coincides with this center.
             if direction == (0., 0., 0.):
@@ -525,10 +555,14 @@ def prepare(cloud, settings, camera=(0., 0., -500.)):
     return spatial + (prepare_colors(cloud, settings, camera, spatial[0]),)
 
 
+_GAUSSIAN_FLOOR = math.exp(-4.)
+
+
 def gaussian_support(opacity):
     """Half-width relative to the 3-sigma card, excluding shader-zero tails.
 
-    The shader discards alpha below 1/255. Keeping those transparent polygons
+    The normalized shader profile subtracts exp(-4), then discards alpha below
+    1/255. Keeping those transparent polygons
     still consumes Redshift's transparency depth. Shrink the card and its UV
     interval together, so every visible Gaussian sample keeps its position and
     opacity. A small outward tolerance protects the cutoff against roundoff.
@@ -536,10 +570,11 @@ def gaussian_support(opacity):
     alpha = min(1., max(0., float(opacity)))
     if alpha <= 1./255.:
         return 0.
-    return min(1., math.sqrt(2.*math.log(alpha*255.)/9.) + 1e-6)
+    cutoff = _GAUSSIAN_FLOOR + (1. - _GAUSSIAN_FLOOR)/(255.*alpha)
+    return min(1., math.sqrt(-math.log(cutoff)/4.5) + 1e-6)
 
 
-def card_indices(spatial, compact=False):
+def card_indices(spatial, compact=False, progress=None):
     """Only omit zero-area projected cards; retain the immutable source arrays.
 
     This is not density sampling or opacity pruning. Excluded cards could not
@@ -548,4 +583,10 @@ def card_indices(spatial, compact=False):
     """
     if not compact:
         return range(len(spatial[0]))
-    return array('I', (i for i, u in enumerate(spatial[1]) if any(u)))
+    indices = array('I')
+    for i, u in enumerate(spatial[1]):
+        if progress and i % 2048 == 0:
+            progress('Select visible cards', i, len(spatial[0]))
+        if any(u):
+            indices.append(i)
+    return indices

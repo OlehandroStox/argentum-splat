@@ -11,10 +11,11 @@ Run these functions on Cinema 4D's main thread. The mesh contract is:
 
 Untrimmed quad half-extents are three Gaussian standard deviations. Geometry
 may trim shader-zero tails while preserving their original UV coordinates.
-The OSL expression evaluates exp(-0.5 * ((3*x)**2 + (3*y)**2)). Like the original 3DGS
-rasterizer, contributions below 1/255 are discarded and alpha is capped at .99.
-Geometry-side trimming reduces unnecessary transparency intersections; the
-shader still discards the remaining transparent corners. It is embedded in the material.
+The OSL expression uses SuperSplat's normalized Gaussian falloff, reaching zero
+at sqrt(8) standard deviations. Contributions below 1/255 are discarded; the
+source opacity is retained at the center. Geometry-side trimming reduces
+unnecessary transparency intersections; the shader discards any remaining
+transparent corners. The OSL code is embedded in the material.
 
 The Redshift Standard Material is deliberately selected: its thin-walled
 subsurface weight is diffuse transmission, suitable for zero-thickness cards.
@@ -52,7 +53,7 @@ LEGACY_GAUSSIAN_SOURCE = """shader ArgentumGaussian(
 }
 """
 
-GAUSSIAN_SOURCE = """shader ArgentumGaussian(
+LEGACY_CAPPED_GAUSSIAN_SOURCE = """shader ArgentumGaussian(
     float SplatOpacity = 1.0,
     output color GaussianOpacity = color(1.0)
 )
@@ -61,6 +62,27 @@ GAUSSIAN_SOURCE = """shader ArgentumGaussian(
     float y = 2.0 * v - 1.0;
     float alpha = min(0.99, clamp(SplatOpacity, 0.0, 1.0)
                             * exp(-4.5 * (x*x + y*y)));
+    GaussianOpacity = color(alpha < (1.0 / 255.0) ? 0.0 : alpha);
+}
+"""
+
+# SuperSplat's deployed PlayCanvas 2.23.3/b7655d8 uses a normalized exp(-4)
+# footprint. Keep our existing 3-sigma UV convention: radius squared is then
+# 9*(x*x+y*y), so the profile ends at x*x+y*y = 8/9. This intentional 0.8.2
+# profile correction reduces the earlier shader's tails; it does not make
+# Redshift's linear-light card compositing identical to SuperSplat's viewer.
+# A new kernel name avoids reusing Redshift's compiled legacy OSL program.
+GAUSSIAN_SOURCE = """shader ArgentumGaussian082(
+    float SplatOpacity = 1.0,
+    output color GaussianOpacity = color(1.0)
+)
+{
+    float x = 2.0 * u - 1.0;
+    float y = 2.0 * v - 1.0;
+    float radius2 = x*x + y*y;
+    float gaussian_floor = exp(-4.0);
+    float falloff = max(0.0, (exp(-4.5 * radius2) - gaussian_floor) / (1.0 - gaussian_floor));
+    float alpha = clamp(SplatOpacity, 0.0, 1.0) * falloff;
     GaussianOpacity = color(alpha < (1.0 / 255.0) ? 0.0 : alpha);
 }
 """
@@ -215,7 +237,7 @@ def _ensure_emission_node(graph, undo_mode=None):
 
 
 def _upgrade_gaussian_node(graph, undo_mode=None):
-    """Upgrade only our unmodified old shader; preserve hand-edited shaders.
+    """Upgrade the two exact built-in legacy shaders; preserve user edits.
 
     The input/output names remain identical, so the existing opacity map and
     surface connections can be retained. Compile in its own transaction before
@@ -223,7 +245,9 @@ def _upgrade_gaussian_node(graph, undo_mode=None):
     """
     node = _node(graph, "as_gaussian")
     source = _input(node, OSL + "internal.sourcecode")
-    if str(source.GetPortValue()).strip() != LEGACY_GAUSSIAN_SOURCE.strip():
+    previous = str(source.GetPortValue()).strip()
+    if previous not in (LEGACY_GAUSSIAN_SOURCE.strip(),
+                        LEGACY_CAPPED_GAUSSIAN_SOURCE.strip()):
         return False
     with _begin_transaction(graph, undo_mode) as transaction:
         source.SetPortValue(GAUSSIAN_SOURCE)
@@ -278,7 +302,7 @@ def create_material(doc, name="Argentum Splat", settings=None):
                 (output, "Redshift Output"),
                 (color, "SplatColor — linear RGB"),
                 (opacity, "SplatOpacity — alpha"),
-                (gaussian, "Gaussian falloff — 3 sigma"),
+                (gaussian, "Gaussian falloff — SuperSplat profile"),
             ):
                 node.SetValue(maxon.NODE.BASE.NAME, label)
             attribute = CORE + "vertexattributelookup."
@@ -391,7 +415,7 @@ def inspect_material(material):
         "reflection_weight": float(_input(surface, prefix + "refl_weight").GetPortValue()),
         "osl_messages": str(_input(gaussian, OSL + "internal.messages").GetPortValue()),
         "gaussian_opacity_profile": (
-            "3DGS: alpha cap 0.99, contribution cutoff 1/255"
+            "SuperSplat: normalized Gaussian, sqrt(8) sigma, cutoff 1/255"
             if str(_input(gaussian, OSL + "internal.sourcecode").GetPortValue()).strip()
             == GAUSSIAN_SOURCE.strip() else "custom or legacy"
         ),

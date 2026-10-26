@@ -2,7 +2,7 @@
 import json
 import weakref
 import c4d
-from . import ids as I, import_budget as budget
+from . import ids as I, import_budget as budget, loading
 from .progress_ui import viewport_position
 
 
@@ -77,7 +77,9 @@ class ImportDialog(c4d.gui.GeDialog):
     def cancel(self):
         owner = self.owner()
         if owner is not None:
-            owner.blocked_request = owner.request_snapshot()['key']
+            request = owner.request_snapshot()
+            owner.blocked_request = request['key']
+            owner.cancelled_non_view = loading.non_view_key(request)
             owner.queued_request = None
             owner.set_progress('Import cancelled. Previous complete model preserved.', None)
         self.finish()

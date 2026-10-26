@@ -1,29 +1,94 @@
 """Build a clean plugin distribution; exclude runtime, weights and local logs."""
 from pathlib import Path
+import ast
 import hashlib
+import os
+import re
+import stat
 import zipfile
-import runpy
 
 ROOT = Path(__file__).resolve().parents[1]
-VERSION = runpy.run_path(str(ROOT / 'ArgentumSplat/argentum_splat/__init__.py'))['__version__']
+ROOT_FILES = ('README.md', 'README.ru.md', 'LICENSE', 'CHANGELOG.md')
+# Release sources and authored documentation only. Runtime packages and models
+# are installed separately, even if someone placed them inside the checkout.
+SHIP_SUFFIXES = {'.py', '.pyp', '.ps1', '.cmd', '.md', '.txt', '.json',
+                 '.png', '.gif', '.svg', '.h', '.res', '.str'}
+PRIVATE_DIRECTORIES = {'__pycache__', 'venv', 'node_modules', 'runtime', 'models',
+    'weights', 'checkpoints', 'wheel-cache', 'cache', 'caches', 'converted',
+    'generated', 'logs', 'dist', 'build', 'tmp', 'temp', 'backups'}
+PRIVATE_FILES = {'runtime.json', 'setup-result.json', 'credentials.json',
+    'secrets.json', 'tokens.json', 'token.txt', 'config.local.json'}
 
 
-def main():
-    output = ROOT / 'dist'
-    output.mkdir(exist_ok=True)
-    archive = output / f'ArgentumSplat-{VERSION}-C4D2027-Windows.zip'
+def release_version(root):
+    """Read literal package metadata without executing plugin startup code."""
+    path = root / 'ArgentumSplat/argentum_splat/__init__.py'
+    tree = ast.parse(path.read_text(encoding='utf8'), filename=str(path))
+    values = [ast.literal_eval(node.value) for node in tree.body
+              if isinstance(node, ast.Assign) and any(isinstance(target, ast.Name)
+                  and target.id == '__version__' for target in node.targets)]
+    if len(values) != 1 or not isinstance(values[0], str) or not re.fullmatch(
+            r'[0-9]+\.[0-9]+\.[0-9]+(?:[-+][A-Za-z0-9.-]+)?', values[0]):
+        raise ValueError('Package must declare one literal semantic __version__.')
+    return values[0]
+
+
+def allowed_path(path, root, directory=False):
+    relative = path.relative_to(root)
+    if any(part.startswith('.') or part.casefold() in PRIVATE_DIRECTORIES for part in relative.parts):
+        return False
+    # Do not follow symlinks or Windows junctions into unrelated local data.
+    attrs = getattr(path.lstat(), 'st_file_attributes', 0)
+    if path.is_symlink() or attrs & getattr(stat, 'FILE_ATTRIBUTE_REPARSE_POINT', 0):
+        return False
+    if not path.resolve().is_relative_to(root.resolve()):
+        return False
+    if directory:
+        return True
+    if (not path.is_file() or path.name.casefold() in PRIVATE_FILES or
+            path.stem.casefold() in {'credentials', 'secrets', 'token', 'tokens', 'password', 'passwords'}):
+        return False
+    return path.suffix.casefold() in SHIP_SUFFIXES or path.name.casefold() == 'license'
+
+
+def release_files(root):
     files = []
     for folder in ('ArgentumSplat', 'docs'):
-        files.extend(p for p in (ROOT / folder).rglob('*') if p.is_file()
-                     and '__pycache__' not in p.parts
-                     and p.suffix not in ('.pyc', '.pyo', '.log'))
-    files.extend(ROOT / name for name in ('README.md', 'README.ru.md', 'LICENSE', 'CHANGELOG.md'))
+        source = root / folder
+        if not source.is_dir() or not allowed_path(source, root, directory=True):
+            raise ValueError('Missing or linked release source directory: ' + folder)
+        for parent, directories, names in os.walk(source, followlinks=False):
+            parent = Path(parent)
+            directories[:] = [name for name in directories
+                if allowed_path(parent / name, root, directory=True)]
+            files.extend(parent / name for name in names
+                         if allowed_path(parent / name, root))
+    for name in ROOT_FILES:
+        path = root / name
+        if not path.is_file() or not allowed_path(path, root):
+            raise ValueError('Missing or linked release document: ' + name)
+        files.append(path)
+    return sorted(files)
+
+
+def build_release(root=ROOT, output=None):
+    root = Path(root).resolve()
+    version = release_version(root)
+    files = release_files(root)
+    output = Path(output) if output is not None else root / 'dist'
+    output.mkdir(parents=True, exist_ok=True)
+    archive = output / f'ArgentumSplat-{version}-C4D2027-Windows.zip'
     with zipfile.ZipFile(archive, 'w', zipfile.ZIP_DEFLATED, compresslevel=9) as zf:
-        for path in sorted(files):
-            zf.write(path, path.relative_to(ROOT).as_posix())
+        for path in files:
+            zf.write(path, path.relative_to(root).as_posix())
     digest = hashlib.sha256(archive.read_bytes()).hexdigest()
     (output / 'SHA256SUMS.txt').write_text(f'{digest}  {archive.name}\n', encoding='ascii')
     print(f'{archive.name}: {len(files)} files, {archive.stat().st_size:,} bytes, SHA256 {digest}')
+    return archive
+
+
+def main():
+    build_release()
 
 
 if __name__ == '__main__':

@@ -39,7 +39,11 @@ def preparation_keys(source_key, values, camera, has_sh, color_config):
         ('scale', 'splat_scale', 'flip_y', 'camera_facing', 'smoothing')) +
         (bool(values.get('compact_cards', False)),), spatial_camera)
     degree = effective_degree(values, has_sh)
-    color_camera = stable_camera if degree else None
+    direction_override = values.get('sh_direction')
+    if direction_override is None and projection and projection.get('orthographic'):
+        direction_override = projection['forward']
+    color_camera = (('parallel', view_key(direction_override)) if direction_override is not None
+                    else stable_camera) if degree else None
     view_values = (values['scale'], values['flip_y'], degree, values['sh_strength']) if degree else (None, None, 0, 0.)
     color = (source_key, view_values + tuple(values[k] for k in
         ('gamma', 'contrast', 'hue', 'saturation', 'level', 'highlight', 'color_mode')), color_camera, color_config)
@@ -81,10 +85,21 @@ class Preparation:
         self.phase = 'reading'
         self.analysis = None
         self.thread = threading.Thread(target=self.run, name='Argentum scan preparation', daemon=True)
+        self._next_yield_at = time.monotonic() + .025
 
     def check(self):
         if self.cancelled.is_set():
             raise Cancelled()
+        # CPU-bound Python preparation competes with the host's Python draw and
+        # timer callbacks for the GIL. At existing checkpoints, briefly give
+        # those callbacks an explicit scheduling opportunity. Do not alter the
+        # process-wide switch interval or sleep in a main-thread caller.
+        if threading.current_thread() is self.thread:
+            now = time.monotonic()
+            if now >= getattr(self, '_next_yield_at', 0.):
+                self._next_yield_at = now + .025
+                if self.cancelled.wait(.001):
+                    raise Cancelled()
 
     def progress(self, stage, completed, total):
         self.check()
@@ -169,10 +184,14 @@ class Preparation:
             if colors is None:
                 colors = geometry.prepare_colors(cloud, request['values'], request['camera'], spatial[0], self.progress)
             self.timings['color_seconds'] = time.perf_counter()-start
+            start = time.perf_counter()
+            indices = geometry.card_indices(spatial, request['values'].get('compact_cards', False), self.progress)
+            self.timings['visibility_seconds'] = time.perf_counter()-start
             self.check()
             self.status = ('Data ready; preparing Cinema 4D geometry', .80)
             self.result = dict(cloud=cloud, spatial=spatial, colors=colors, bounds=bounds,
-                               colors_are_working=self.colors is not None, analysis=analysis)
+                               colors_are_working=self.colors is not None, analysis=analysis,
+                               card_indices=indices)
         except BaseException as error:
             # Traceback frames can retain the entire partially loaded reservoir
             # in a cycle after cancellation. Keep the error, not gigabytes of

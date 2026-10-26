@@ -31,8 +31,10 @@ def multiply(matrix, vector):
 def screen(point, camera, camera_matrix, settings):
     p = multiply(camera_matrix, tuple(a-b for a, b in zip(point, camera)))
     if settings.get("orthographic"):
-        return p[0]/settings["pixel_world_x"], p[1]/settings["pixel_world_y"]
-    return settings["focal_x"]*p[0]/p[2], settings["focal_y"]*p[1]/p[2]
+        x, y = p[0]/settings["pixel_world_x"], p[1]/settings["pixel_world_y"]
+    else:
+        x, y = settings["focal_x"]*p[0]/p[2], settings["focal_y"]*p[1]/p[2]
+    return x+settings.get('offset_x', 0.), y+settings.get('offset_y', 0.)
 
 
 class ProjectedCardTests(unittest.TestCase):
@@ -175,6 +177,37 @@ class ProjectedCardTests(unittest.TestCase):
             (0.,0.,0.),1.,1.,False,projection())
         self.assertGreater(math.hypot(*result[1]),0.)
 
+    def test_film_shift_changes_visibility_without_changing_covariance(self):
+        for settings in (projection(), projection(orthographic=True, pixel_world_x=.0125, pixel_world_y=.02)):
+            with self.subTest(orthographic=settings.get('orthographic', False)):
+                source = splat((3., -2., 10.), scales=(.2, .4, 2.), rotation=(.7, .2, .3, .6))
+                shifted = dict(settings, offset_x=-400., offset_y=300.)
+                self.assertEqual(g.projected_card_axes(source, (0., 0., 0.), 1., 1., False, settings),
+                                 g.projected_card_axes(source, (0., 0., 0.), 1., 1., False, shifted))
+                self.assertScreenCovariance(source, (0., 0., 0.), shifted,
+                                            ((1., 0., 0.), (0., 1., 0.), (0., 0., 1.)))
+                offscreen = splat((12., 0., 10.), scales=(.01, .01, .01))
+                self.assertEqual(g.projected_card_axes(offscreen, (0., 0., 0.), 1., 1., False, settings)[1:3],
+                                 ((0., 0., 0.), (0., 0., 0.)))
+                self.assertGreater(math.hypot(*g.projected_card_axes(
+                    offscreen, (0., 0., 0.), 1., 1., False, shifted)[1]), 0.)
+
+    def test_large_shift_is_applied_before_early_frustum_rejection(self):
+        source = splat((1000., -1000., 10.), scales=(.001, .001, .001))
+        settings = projection(offset_x=-80000., offset_y=60000.)
+        result = g.projected_card_axes(source, (0., 0., 0.), 1., 1., False, settings)
+        self.assertGreater(math.hypot(*result[1]), 0.)
+        self.assertEqual(result[0], source.position)
+        # The same shifted view must discard the old optical-axis center.
+        hidden = g.projected_card_axes(splat(), (0., 0., 0.), 1., 1., False, settings)
+        self.assertEqual(hidden[1:3], ((0., 0., 0.), (0., 0., 0.)))
+
+    def test_explicit_zero_shift_keeps_old_geometry_exactly(self):
+        for source in (splat(), splat((3., -2., 10.)), splat((1e6, 0., .001))):
+            self.assertEqual(g.projected_card_axes(source, (0., 0., 0.), 1., 1., False, projection()),
+                             g.projected_card_axes(source, (0., 0., 0.), 1., 1., False,
+                                                   projection(offset_x=0., offset_y=-0.)))
+
     def test_culling_preserves_source_indices_and_smoothing_is_safe(self):
         cloud = core.SplatCloud([splat(),splat((0.,0.,-10.)),splat((1e6,0.,.001))],3)
         values = dict(scale=1.,camera_facing=True,projection=projection(),pixel_variance=.075)
@@ -204,7 +237,8 @@ class ProjectedCardTests(unittest.TestCase):
     def test_invalid_projection_inputs_are_rejected(self):
         for invalid in (projection(forward=(0., 0., 0.)), projection(focal_x=0.),
                         projection(width=0.), projection(up=(math.nan, 1., 0.)),
-                        projection(orthographic=True, pixel_world_x=-1., pixel_world_y=.1)):
+                        projection(orthographic=True, pixel_world_x=-1., pixel_world_y=.1),
+                        projection(offset_x=math.nan), projection(offset_y=math.inf)):
             with self.subTest(invalid=invalid):
                 with self.assertRaises(ValueError):
                     g.projected_card_axes(splat(), (0., 0., 0.), 1., 1., False, invalid)

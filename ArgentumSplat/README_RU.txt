@@ -1,4 +1,4 @@
-ARGENTUM SPLAT 0.8.2-dev — Cinema 4D 2027 / Windows / Redshift
+ARGENTUM SPLAT 0.8.2 — Cinema 4D 2027 / Windows / Redshift
 
 УСТАНОВКА
 1. Закройте Cinema 4D.
@@ -26,6 +26,9 @@ Open Help Reader открывает большое окно для чтения.
 Видео и секвенции используют один кадр для одной статичной модели.
 Preview Points влияет только на редактор; Import Quality — на геометрию.
 Для больших моделей потребуется больше памяти и времени.
+Cancel сохраняет предыдущую готовую модель; для повтора нажмите Reload.
+Redshift использует карточки: плотная прозрачность и смешивание цветов
+могут отличаться от SuperSplat даже при полном импорте.
 
 Документация: https://github.com/OlehandroStox/argentum-splat
 Поддержать автора: https://boosty.to/olehandrostox/donate

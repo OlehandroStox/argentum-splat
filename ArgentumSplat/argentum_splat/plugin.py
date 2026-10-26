@@ -64,6 +64,7 @@ def settings(op):
         "pixel_variance": float(op[I.PIXEL_VARIANCE] or 0.),
         "compact_buffers": True,
         "compact_cards": op.GetUp() is None,
+        "sh_direction": orthographic_direction(op),
     }
     if values['camera_facing']:
         values['projection'] = screen_projection(op)
@@ -157,6 +158,26 @@ def projection_camera(op):
     return vector_tuple(~op.GetMg() * position)
 
 
+def orthographic_direction(op):
+    """Parallel views have one SH ray direction, independent of camera position."""
+    doc = op.GetDocument()
+    bd = doc.GetRenderBaseDraw() if doc else None
+    cam = op[I.CAMERA] or (bd.GetSceneCamera(doc) or bd.GetEditorCamera() if bd else None)
+    if cam is None:
+        return None
+    classic = cam.CheckType(c4d.Ocamera)
+    rs_type = getattr(c4d, 'Orscamera', None)
+    redshift = rs_type is not None and cam.CheckType(rs_type)
+    parallel = ((classic and cam[c4d.CAMERA_PROJECTION] == c4d.Pparallel) or
+                (redshift and cam[c4d.RSCAMERAOBJECT_PROJECTION] ==
+                 c4d.RSCAMERAOBJECT_PROJECTION_ORTHOGRAPHIC))
+    # Fixed and oblique editor views override the camera matrix; their ray
+    # direction cannot be inferred from its v3.
+    if not parallel:
+        return None
+    return vector_tuple((~op.GetMg()).MulV(cam.GetMg().v3))
+
+
 def screen_projection(op):
     """Camera axes retain inverse object scale so projection supports affine objects."""
     doc = op.GetDocument()
@@ -164,16 +185,79 @@ def screen_projection(op):
         return None
     bd = doc.GetRenderBaseDraw()
     cam = op[I.CAMERA] or (bd.GetSceneCamera(doc) or bd.GetEditorCamera() if bd else None)
-    if cam is None or cam[c4d.CAMERA_PROJECTION] != c4d.Pperspective:
+    if cam is None:
+        return None
+    classic = cam.CheckType(c4d.Ocamera)
+    rs_type = getattr(c4d, 'Orscamera', None)
+    redshift = rs_type is not None and cam.CheckType(rs_type)
+    if not classic and not redshift:
+        return None
+    mode = cam[c4d.RSCAMERAOBJECT_PROJECTION if redshift else c4d.CAMERA_PROJECTION]
+    parallel = mode == (c4d.RSCAMERAOBJECT_PROJECTION_ORTHOGRAPHIC if redshift else c4d.Pparallel)
+    perspective = mode == (c4d.RSCAMERAOBJECT_PROJECTION_PERSPECTIVE if redshift else c4d.Pperspective)
+    if not perspective and not parallel:
         # Other C4D projections keep the existing covariance-card path.
         return None
+    if perspective and classic:
+        try:
+            fov = float(cam[c4d.CAMERAOBJECT_FOV])
+        except (TypeError, ValueError):
+            return None
+        if not math.isfinite(fov) or not 0. < fov < math.pi:
+            return None
     rd = doc.GetActiveRenderData()
     width, height = max(1., float(rd[c4d.RDATA_XRES])), max(1., float(rd[c4d.RDATA_YRES]))
-    focal = width / (2. * math.tan(float(cam[c4d.CAMERAOBJECT_FOV]) * .5))
+    pixel_aspect = float(rd[c4d.RDATA_PIXELASPECT] or 1.)
+    try:
+        if redshift:
+            shift = cam[c4d.RSCAMERAOBJECT_SENSOR_SHIFT]
+            shift_x, shift_y = float(shift.x), float(shift.y)
+        else:
+            shift_x = float(cam[c4d.CAMERAOBJECT_FILM_OFFSET_X])
+            shift_y = float(cam[c4d.CAMERAOBJECT_FILM_OFFSET_Y])
+    except (TypeError, ValueError, AttributeError):
+        return None
+    offset_x, offset_y = -shift_x*width, shift_y*height
+    if not all(math.isfinite(v) for v in (offset_x, offset_y)):
+        return None
     inv, mg = ~op.GetMg(), cam.GetMg()
-    return dict(right=vector_tuple(inv.MulV(mg.v1)), up=vector_tuple(inv.MulV(mg.v2)),
-                forward=vector_tuple(inv.MulV(mg.v3)), focal_x=focal,
-                focal_y=focal * float(rd[c4d.RDATA_PIXELASPECT] or 1.), width=width, height=height)
+    projection = dict(right=vector_tuple(inv.MulV(mg.v1)), up=vector_tuple(inv.MulV(mg.v2)),
+                      forward=vector_tuple(inv.MulV(mg.v3)), width=width, height=height)
+    if parallel:
+        try:
+            zoom = float(cam[c4d.CAMERA_ZOOM])
+        except (TypeError, ValueError):
+            return None
+        if not math.isfinite(zoom) or zoom <= 0.:
+            raise ValueError("Parallel camera zoom must be positive and finite.")
+        # BaseView.GetViewParameter: Pparallel uses zoom / 1024 world-to-screen
+        # scale. Convert it to render pixels, independent of the editor size.
+        pixel_world = 1024. / (width * zoom)
+        projection.update(orthographic=True, pixel_world_x=pixel_world,
+                          pixel_world_y=pixel_world / pixel_aspect)
+    else:
+        if redshift:
+            # RS FOV getters can describe an unfitted sensor axis. The host's
+            # evaluated effective aperture includes Horizontal/Vertical/Crop/
+            # Fit/Square synchronization and matches native WS projection.
+            try:
+                focus, aperture = float(cam[c4d.CAMERA_FOCUS]), float(cam[c4d.CAMERAOBJECT_APERTURE])
+            except (TypeError, ValueError):
+                return None
+            if not all(math.isfinite(v) and v > 0. for v in (focus, aperture)):
+                return None
+            focal = width * focus / aperture
+        else:
+            focal = width / (2. * math.tan(fov * .5))
+        if not math.isfinite(focal) or focal <= 0.:
+            return None
+        projection.update(focal_x=focal, focal_y=focal * pixel_aspect)
+    # C4D's positive shift moves the principal point left/up. Geometry uses
+    # right/up coordinates, so its Y sign is opposite to screen-space WS.
+    # Omit zero offsets to preserve existing projection keys and ready caches.
+    if offset_x or offset_y:
+        projection.update(offset_x=offset_x, offset_y=offset_y)
+    return projection
 
 
 def complete_steps(steps):
@@ -200,13 +284,16 @@ def gaussian_uv_corners(support, cache):
     return corners
 
 
-def build_mesh_steps(cloud, prepared, material, opacity=1., weights=None):
-    indices = geometry.card_indices(prepared, (weights or {}).get('compact_cards', False))
+def build_mesh_steps(cloud, prepared, material, opacity=1., weights=None, indices=None):
+    if indices is None:
+        indices = geometry.card_indices(prepared, (weights or {}).get('compact_cards', False))
     count = len(indices)
+    yield ('Allocate Gaussian cards', 0, count)
+    from . import import_budget
+    import_budget.check_card_memory(count)
     mesh = c4d.PolygonObject(count*4, count)
     mesh.SetName("Gaussian Cards")
     centers, us, vs, normals, colors = prepared
-    points = []
     uv = c4d.UVWTag(count)
     mesh.InsertTag(uv)
     color_tag = c4d.VertexColorTag(count*4)
@@ -223,15 +310,20 @@ def build_mesh_steps(cloud, prepared, material, opacity=1., weights=None):
     normal_data = normal_tag.GetDataAddressW()
     alphas = []
     uv_cache = {}
+    deadline = 0.
     for n, (source_index, alpha) in enumerate(zip(indices, core.iter_attributes(cloud, 'opacity', indices))):
-        if n % 1024 == 0:
+        if n % 64 == 0 and (n % 256 == 0 or time.perf_counter() >= deadline):
             yield ('Build Gaussian cards', n, count)
+            deadline = time.perf_counter() + .004
         center, u, v = c4d.Vector(*centers[source_index]), c4d.Vector(*us[source_index]), c4d.Vector(*vs[source_index])
         support = geometry.gaussian_support(alpha*opacity)
         u *= support
         v *= support
-        points.extend((center-u-v, center+u-v, center+u+v, center-u+v))
         j = n*4
+        # Streaming avoids millions of temporary Vector wrappers and a single
+        # uninterruptible SetAllPoints conversion at the end of a large import.
+        for k, point in enumerate((center-u-v, center+u-v, center+u+v, center-u+v)):
+            mesh.SetPoint(j+k, point)
         mesh.SetPolygon(n, c4d.CPolygon(j,j+1,j+2,j+3))
         uv.SetSlow(n, **gaussian_uv_corners(support, uv_cache))
         rgba = c4d.Vector4d(*colors[source_index], min(1., alpha*opacity))
@@ -240,8 +332,6 @@ def build_mesh_steps(cloud, prepared, material, opacity=1., weights=None):
         alphas.extend([min(1., max(0., alpha*opacity))]*4)
         normal = c4d.Vector(*normals[source_index])
         c4d.NormalTag.Set(normal_data,n,dict(a=normal,b=normal,c=normal,d=normal))
-    mesh.SetAllPoints(points)
-    del points
     yield ('Apply opacity', count, count)
     alpha_tag.SetAllHighlevelData(alphas)
     weights = weights or materials.DEFAULTS
@@ -286,13 +376,14 @@ def update_mesh_attributes(mesh, cloud, prepared, opacity, weights,
 
 def update_mesh_steps(mesh, cloud, prepared, opacity, weights,
                       update_colors=False, update_opacity=False,
-                      update_weights=False, material=None, update_material=False):
+                      update_weights=False, material=None, update_material=False, indices=None):
     """Update an owned clone; opacity also updates its shader-zero support.
 
     Never pass op.GetCache() directly: it belongs to Cinema 4D and may be in use
     by other generators or an interactive renderer. The caller owns this mesh.
     """
-    indices = geometry.card_indices(prepared, weights.get('compact_cards', False))
+    if indices is None:
+        indices = geometry.card_indices(prepared, weights.get('compact_cards', False))
     count = len(indices)
     if mesh.GetPointCount() != count * 4 or mesh.GetPolygonCount() != count:
         raise ValueError("Cached Gaussian mesh does not match the source cloud.")
@@ -303,9 +394,11 @@ def update_mesh_steps(mesh, cloud, prepared, opacity, weights,
         tag = tags["SplatColor"]
         data = tag.GetDataAddressW()
         colors = prepared[4]
+        deadline = 0.
         for index, (source_index, alpha) in enumerate(zip(indices, core.iter_attributes(cloud, 'opacity', indices))):
-            if index % 1024 == 0:
+            if index % 64 == 0 and (index % 256 == 0 or time.perf_counter() >= deadline):
                 yield ('Update colour / opacity', index, count)
+                deadline = time.perf_counter() + .004
             rgba = c4d.Vector4d(*colors[source_index], min(1., max(0., alpha * opacity)))
             if update_opacity:
                 support = geometry.gaussian_support(alpha*opacity)
@@ -410,6 +503,7 @@ class SplatObject(InteractiveScan, c4d.plugins.ObjectData):
         self.invalidate()
         self.mesh_template = None
         self.ready_request = self.blocked_request = self.queued_request = None
+        self.cancelled_non_view = None
         self.source_analysis = self.display_key = None
 
     def Read(self, op, hf, level):
@@ -623,12 +717,20 @@ class SplatObject(InteractiveScan, c4d.plugins.ObjectData):
         if not count:
             return c4d.DRAWRESULT_OK
         bd.SetMatrix_Matrix(op, bh.GetMg())
-        draw_key = (self.prepare_key, count)
+        # Projection changes do not move source centers. Reuse native preview
+        # vectors across camera-only updates; SH0 can also keep its RGB array.
+        spatial = self.spatial_key
+        point_key = (self.load_key, spatial[1][0], spatial[1][2], len(positions), count)
+        color_key = (self.color_key, len(positions), count)
+        draw_key = (point_key, color_key)
         if draw_key != getattr(self, "draw_key", None):
             indices = [i*len(positions)//count for i in range(count)]
-            points = [c4d.Vector(*positions[i]) for i in indices]
+            previous = self.draw_key if self.draw_data is not None else None
+            points = (self.draw_data[0] if previous and previous[0] == point_key else
+                      [c4d.Vector(*positions[i]) for i in indices])
             # Mesh and point preview share document working-space RGB.
-            point_colors = [value for i in indices for value in colors[i]]
+            point_colors = (self.draw_data[1] if previous and previous[1] == color_key else
+                            [value for i in indices for value in colors[i]])
             self.draw_data = points, point_colors
             self.draw_key = draw_key
         points, point_colors = self.draw_data
@@ -652,6 +754,9 @@ class SplatObject(InteractiveScan, c4d.plugins.ObjectData):
         if op[I.CAMERA_FACING]:
             projection = screen_projection(op)
             camera = (camera, tuple(sorted(projection.items())) if projection else None)
+        direction = orthographic_direction(op) if degree and op[I.SH_DEGREE] and op[I.SH_STRENGTH] else None
+        if direction is not None:
+            camera = (camera, direction) if op[I.CAMERA_FACING] else ('parallel', direction)
         camera = loading.view_key(camera)
         if camera != self.last_camera:
             self.last_camera = camera
@@ -908,7 +1013,9 @@ class SplatObject(InteractiveScan, c4d.plugins.ObjectData):
         self.job["log"].close()
         self.scan_state()
         try:
-            self.blocked_request = self.request_snapshot()['key']
+            request = self.request_snapshot()
+            self.blocked_request = request['key']
+            self.cancelled_non_view = loading.non_view_key(request)
         except (OSError, ReferenceError):
             self.blocked_request = None
         self.queued_request = None

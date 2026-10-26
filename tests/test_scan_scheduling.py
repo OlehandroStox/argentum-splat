@@ -353,13 +353,39 @@ class InteractiveSchedulingTests(unittest.TestCase):
         self.assertIs(job["worker"].spatial, self.instance.spatial)
         self.assertIsNone(job["worker"].colors)
 
+    def test_low_memory_attribute_refresh_preserves_previous_mesh_without_cloning(self):
+        from argentum_splat import import_budget
+        previous = self.install_ready_cloud()
+        mesh = Mock()
+        mesh.GetPolygonCount.return_value = 2_000_000
+        self.instance.mesh_template = mesh
+        self.instance.sync_material = Mock()
+        self.plugin.update_mesh_steps = Mock()
+        self.op[I.OPACITY] = .5
+        self.instance.start_scan()
+        job = self.instance.job
+        worker = job['worker']
+        worker.result = dict(cloud=self.instance.cloud, spatial=self.instance.spatial,
+            colors=self.instance.colors, colors_are_working=True,
+            bounds=self.instance.bounds, card_indices=range(1))
+        worker.done.set()
+        with patch.object(import_budget, 'available_memory', return_value=2**30):
+            with self.assertRaisesRegex(MemoryError, 'previous complete model'):
+                self.instance.poll_scan()
+        mesh.GetClone.assert_not_called()
+        self.plugin.update_mesh_steps.assert_not_called()
+        self.assertIs(self.instance.mesh_template, mesh)
+        self.assertEqual(self.instance.ready_request, previous['key'])
+        self.assertIsNone(self.instance.job)
+        self.assertEqual(self.instance.blocked_request, self.instance.request_snapshot()['key'])
+
     def test_initial_analysis_transitions_without_reading_or_publishing_twice(self):
         self.setup.needs_initial_analysis.return_value=True
         self.instance.start_scan(explicit=True)
         job=self.instance.job
         first=job['worker']
         self.assertTrue(first.request['analyse_only'])
-        source=object();report={'retained':2}
+        source=types.SimpleNamespace(metadata={'sh_degree':3});report={'retained':2}
         first.result=dict(cloud=source,analysis=report,analyse_only=True)
         first.timings={'read_seconds':2.5}
         first.done.set()
@@ -379,7 +405,7 @@ class InteractiveSchedulingTests(unittest.TestCase):
         self.setup.frame_scan.side_effect=ValueError('camera unavailable')
         self.instance.start_scan()
         first=self.instance.job['worker']
-        first.result=dict(cloud=object(),analysis={},analyse_only=True)
+        first.result=dict(cloud=types.SimpleNamespace(metadata={'sh_degree':3}),analysis={},analyse_only=True)
         first.done.set()
         self.instance.poll_scan()
         next_worker=self.instance.job['worker']
@@ -402,6 +428,138 @@ class InteractiveSchedulingTests(unittest.TestCase):
         self.assertEqual(self.instance.load_key, source_key)
         self.assertEqual(len(cache), 2)
         reader.assert_not_called()
+
+    def test_interactive_duplicate_reuses_evicted_live_cloud_and_prepared_arrays(self):
+        self.install_ready_cloud()
+        owner = types.SimpleNamespace(**vars(self.instance))
+        owner.source_analysis = {'retained':1}
+        self.plugin.INSTANCES = [owner]
+        self.instance.cloud = self.instance.load_key = None
+        self.instance.spatial = self.instance.colors = self.instance.bounds = None
+        self.instance.spatial_key = self.instance.color_key = None
+        self.instance.ready_request = self.instance.mesh_template = None
+        from argentum_splat import import_budget
+        with patch.object(import_budget, 'check_memory', side_effect=AssertionError('source already live')):
+            self.instance.start_scan()
+        worker = self.instance.job['worker']
+        self.assertIs(worker.cloud, owner.cloud)
+        self.assertIs(worker.spatial, owner.spatial)
+        self.assertIs(worker.colors, owner.colors)
+        self.assertIs(worker.bounds, owner.bounds)
+        self.assertEqual(worker.request['analysis'], owner.source_analysis)
+        self.assertIsNot(worker.request['analysis'], owner.source_analysis)
+        self.assertEqual(self.plugin.CLOUD_CACHE, {})
+
+    def test_reused_source_analysis_keeps_framing_local_to_each_object(self):
+        self.install_ready_cloud()
+        owner = types.SimpleNamespace(**vars(self.instance))
+        owner.source_analysis = {'retained':1, 'framing':'first scene view',
+                                 'frame_warning':'first scene warning'}
+        self.plugin.INSTANCES = [owner]
+        self.instance.cloud = self.instance.load_key = None
+        self.instance.spatial = self.instance.colors = self.instance.bounds = None
+        self.instance.spatial_key = self.instance.color_key = None
+        self.instance.ready_request = self.instance.mesh_template = None
+        self.instance.start_scan()
+        analysis = self.instance.job['worker'].request['analysis']
+        self.assertEqual(analysis, {'retained':1})
+        analysis.update(framing='second scene view', frame_warning='second scene warning')
+        self.assertEqual(owner.source_analysis['framing'], 'first scene view')
+        self.assertEqual(owner.source_analysis['frame_warning'], 'first scene warning')
+
+    def test_material_creation_stays_in_job_request_across_poll_normalization(self):
+        self.op[I.MATERIAL] = None
+        self.instance.start_scan()
+        job = self.instance.job
+        cloud = types.SimpleNamespace(metadata={'sh_degree':3})
+        job['worker'].result = dict(cloud=cloud, spatial=([],[],[],[]), colors=[],
+                                    colors_are_working=True, card_indices=[])
+        self.instance.sync_material = lambda: self.op.__setitem__(I.MATERIAL, 'new material')
+        def build(*args, **kwargs):
+            yield ('Native assembly', 0, 1)
+            return object()
+        self.plugin.build_mesh_steps = build
+        builder = self.instance.assemble_scan(job)
+        self.assertEqual(next(builder), ('Prepare material', .84))
+        captured = job['request']
+        # A timer poll normalizes after the generator has captured its request.
+        job['request'] = self.module.resolved_request(job['request'], cloud)
+        self.assertIs(job['request'], captured)
+        next(builder)
+        self.assertEqual(job['request']['material'], 'new material')
+        self.assertEqual(job['request']['key'][-1], 'new material')
+        self.assertEqual(loading.non_view_key(job['request']),
+                         loading.non_view_key(self.instance.request_snapshot()))
+        builder.close()
+
+    def test_user_cancel_survives_camera_motion_until_reload_or_static_edit(self):
+        for resume in ('explicit', 'control', 'source'):
+            with self.subTest(resume=resume):
+                self.instance.start_scan(explicit=True)
+                job = self.instance.job
+                self.instance.cancel_scan(notify=False)
+                job['worker'].done.set()
+                self.instance.poll_scan()
+                self.assertIsNone(self.instance.job)
+                for camera in (CAMERA_B, (150., 40., -200.)):
+                    self.op.camera = camera
+                    self.instance.start_scan()
+                    self.assertIsNone(self.instance.job)
+                    self.assertIsNone(self.instance.queued_request)
+                if resume == 'explicit':
+                    self.instance.start_scan(explicit=True)
+                elif resume == 'control':
+                    self.op.values['gamma'] += .1
+                    self.instance.start_scan()
+                else:
+                    changed = Path(self.tmp.name)/'after-cancel.splat'
+                    changed.write_bytes(bytes(64))
+                    self.op[I.FILE] = str(changed)
+                    self.instance.start_scan()
+                self.assertIsNotNone(self.instance.job)
+                self.assertIsNone(self.instance.cancelled_non_view)
+                self.instance.job['worker'].done.set()
+                self.instance.release_scan()
+
+    def test_cancelled_request_is_not_requeued_by_viewport_evaluation(self):
+        self.instance.start_scan()
+        self.instance.cancel_scan(notify=False)
+        self.instance.job['worker'].done.set()
+        self.instance.poll_scan()
+        self.op.camera = CAMERA_B
+        self.op.GetCache = lambda: 'previous complete cache'
+        self.assertEqual(self.instance.interactive_cache(self.op), 'previous complete cache')
+        self.assertIsNone(self.instance.queued_request)
+        self.op.values['gamma'] = 1.2
+        self.instance.interactive_cache(self.op)
+        self.assertIsNotNone(self.instance.queued_request)
+
+    def test_interactive_duplicate_does_not_reuse_a_different_view_geometry(self):
+        self.op.values['camera_facing'] = True
+        self.install_ready_cloud(degree=0)
+        owner = types.SimpleNamespace(**vars(self.instance))
+        self.plugin.INSTANCES = [owner]
+        self.instance.cloud = self.instance.load_key = None
+        self.instance.spatial = self.instance.colors = self.instance.bounds = None
+        self.instance.spatial_key = self.instance.color_key = None
+        self.instance.ready_request = self.instance.mesh_template = None
+        self.op.camera = CAMERA_B
+        self.instance.start_scan()
+        worker = self.instance.job['worker']
+        self.assertIs(worker.cloud, owner.cloud)
+        self.assertIsNone(worker.spatial)
+        self.assertIsNone(worker.bounds)
+        self.assertIs(worker.colors, owner.colors)
+
+    def test_interactive_source_reuse_rejects_outdated_file_signature(self):
+        self.install_ready_cloud()
+        owner = types.SimpleNamespace(**vars(self.instance))
+        owner.load_key = (owner.load_key[0],owner.load_key[1]-1,*owner.load_key[2:])
+        self.plugin.INSTANCES = [owner]
+        self.instance.cloud = self.instance.load_key = None
+        self.instance.ready_request = self.instance.mesh_template = None
+        self.instance.start_scan()
+        self.assertIsNone(self.instance.job['worker'].cloud)
 
     def test_force_source_reload_bypasses_live_cloud_reuse(self):
         source_key = self.instance.source_key(self.op)
@@ -471,6 +629,46 @@ class InteractiveSchedulingTests(unittest.TestCase):
             self.assertFalse(job["worker"].cancelled.is_set())
             self.assertIsNone(job["cancel_reason"])
         self.assertEqual(self.instance.shown, 1)
+
+    def test_first_sh0_read_does_not_restart_camera_independent_preparation(self):
+        self.instance.start_scan()
+        job = self.instance.job
+        worker = job['worker']
+        worker.cloud = types.SimpleNamespace(metadata={'sh_degree':0})
+        worker.phase = 'preparing'
+        self.op.camera = CAMERA_B
+        self.instance.poll_scan()
+        self.assertIs(self.instance.job, job)
+        self.assertFalse(worker.cancelled.is_set())
+        self.assertNotIn('latest_view_key', job)
+        self.assertIsNone(job['request']['color_key'][2])
+        self.assertEqual(job['request']['camera'], CAMERA_A)
+
+    def test_known_degree_does_not_hide_static_edits_during_first_preparation(self):
+        self.instance.start_scan()
+        job = self.instance.job
+        job['worker'].cloud = types.SimpleNamespace(metadata={'sh_degree':0})
+        job['worker'].phase = 'preparing'
+        self.op.values['gamma'] = 1.2
+        self.instance.poll_scan()
+        self.assertTrue(job['worker'].cancelled.is_set())
+        self.assertEqual(job['cancel_reason'], 'superseded')
+
+    def test_real_worker_error_is_reported_before_camera_retargeting(self):
+        self.install_ready_cloud()
+        self.op.camera = CAMERA_B
+        self.instance.start_scan()
+        worker = self.instance.job['worker']
+        worker.phase = 'preparing'
+        worker.error = ValueError('invalid source covariance')
+        worker.done.set()
+        self.op.camera = (250.,80.,-300.)
+        self.instance.restart_view = Mock()
+        with self.assertRaisesRegex(RuntimeError, 'invalid source covariance'):
+            self.instance.poll_scan()
+        self.instance.restart_view.assert_not_called()
+        self.assertIsNone(self.instance.job)
+        self.assertEqual(self.instance.blocked_request, self.instance.request_snapshot()['key'])
 
     def test_static_change_cancels_obsolete_work(self):
         self.install_ready_cloud()

@@ -11,14 +11,14 @@ class LifetimeTests(unittest.TestCase):
         cache={'same':shared,'unrelated':[4]}
         state=SimpleNamespace(load_key='same',cloud=shared,prepared=shared,
             spatial=shared,colors=shared,mesh_template=object(),ready_request=object(),
-            blocked_request=object(),queued_request=object(),source_analysis=object(),
+            blocked_request=object(),queued_request=object(),cancelled_non_view=object(),source_analysis=object(),
             display_key=object(),job={'worker_inputs':shared})
         invalidate=function('plugin.py','invalidate',{},'SplatObject')
         state.invalidate=lambda:invalidate(state)
         release=function('plugin.py','release_transient_data',{'CLOUD_CACHE':cache},'SplatObject')
         release(state)
         for name in ('cloud','prepared','spatial','colors','mesh_template','ready_request',
-                     'blocked_request','queued_request','source_analysis','display_key'):
+                     'blocked_request','queued_request','cancelled_non_view','source_analysis','display_key'):
             self.assertIsNone(getattr(state,name))
         self.assertEqual(cache,{'unrelated':[4]})
         self.assertEqual(shared,[1,2,3])

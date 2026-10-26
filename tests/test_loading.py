@@ -5,6 +5,7 @@ import struct
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'ArgentumSplat'))
 from argentum_splat import core, geometry, loading
@@ -126,6 +127,40 @@ class LoadingTests(unittest.TestCase):
         self.assertTrue(worker.done.wait(5))
         self.assertIsInstance(worker.error,FileNotFoundError)
         self.assertIsNone(worker.result)
+
+    def test_worker_cooperative_yield_is_throttled_at_existing_checkpoints(self):
+        worker = loading.Preparation({})
+        worker._next_yield_at = .025
+        with patch.object(loading.threading, 'current_thread', return_value=worker.thread), \
+                patch.object(loading.time, 'monotonic', side_effect=[0.,.020,.026,.030,.050,.052]), \
+                patch.object(worker.cancelled, 'wait', return_value=False) as wait:
+            for _ in range(6):
+                worker.check()
+        self.assertEqual(wait.call_count, 2)
+        self.assertEqual(wait.call_args_list[0].args, (.001,))
+        self.assertEqual(wait.call_args_list[1].args, (.001,))
+
+    def test_cooperative_yield_never_sleeps_a_non_worker_caller(self):
+        worker = loading.Preparation({})
+        worker._next_yield_at = 0.
+        with patch.object(worker.cancelled, 'wait') as wait:
+            worker.check()
+        wait.assert_not_called()
+
+    def test_cancellation_interrupts_the_cooperative_wait(self):
+        worker = loading.Preparation({})
+        worker._next_yield_at = 0.
+        def cancel_during_wait(delay):
+            worker.cancelled.set()
+            return True
+        with patch.object(loading.threading, 'current_thread', return_value=worker.thread), \
+                patch.object(worker.cancelled, 'wait', side_effect=cancel_during_wait):
+            with self.assertRaises(loading.Cancelled):
+                worker.check()
+        with patch.object(worker.cancelled, 'wait') as wait:
+            with self.assertRaises(loading.Cancelled):
+                worker.check()
+        wait.assert_not_called()
 
 
 if __name__ == '__main__':

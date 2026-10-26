@@ -115,3 +115,31 @@ def check_memory(count, limit, available=None):
             'Choose LOW / MEDIUM / HIGH, close other scenes, or free memory, then Reload. '
             'The previous complete model is preserved; MAX is never silently sampled.'.format(
                 needed / 2**30, estimate(count, limit)[2] / 2**30, available / 2**30))
+
+
+def check_card_memory(card_count, available=None):
+    """Recheck actual visible native cards after CPU preparation is resident.
+
+    One card stores four float64 points (96 B), a polygon (16 B), UVs (96 B),
+    colour (64 B), four scalar maps (64 B), and normals (about 24 B). Reserve
+    1024 B per visible card for the mesh, its display clone, temporary alpha
+    arrays and native allocator overhead. Already resident source/preparation
+    and old complete models are reflected in available RAM, not counted twice.
+    Redshift's own render/BVH/VRAM allocation remains outside this CPU guard.
+    """
+    if isinstance(card_count, bool) or not isinstance(card_count, int) or card_count < 0:
+        raise ValueError('Visible Gaussian card count must be a nonnegative integer.')
+    if not card_count:
+        return
+    available = available_memory() if available is None else available
+    if available is None:
+        return
+    needed = card_count * 1024
+    if needed + 1024**3 > available:
+        raise MemoryError(
+            'The current view needs {:,} Gaussian cards (approximately {:.1f} GiB '
+            'for native geometry and its display copy); {:.1f} GiB RAM is free '
+            'after source preparation. Choose a lower Import Quality, close other '
+            'scenes, or free memory, then Reload. The previous complete model is '
+            'preserved; source detail is never silently reduced.'.format(
+                card_count, needed / 2**30, available / 2**30))
