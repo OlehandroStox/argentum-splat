@@ -77,6 +77,8 @@ class NativeProjectionTests(unittest.TestCase):
         self.op.document = SimpleNamespace(GetRenderBaseDraw=lambda: self.draw,
                                           GetActiveRenderData=lambda: self.render)
         self.context = dict(c4d=host, I=I, math=math,
+                            __package__='argentum_splat',
+                            assets=SimpleNamespace(resolve_path=lambda *args: ''),
                             input_source=SimpleNamespace(coordinate_flip=lambda *args: False))
         for name in ('vector_tuple', 'orthographic_direction', 'screen_projection', 'settings'):
             function('plugin.py', name, self.context)

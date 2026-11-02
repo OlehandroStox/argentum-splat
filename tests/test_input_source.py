@@ -5,15 +5,13 @@ import tempfile
 import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "ArgentumSplat"))
-from argentum_splat.input_source import classify, classify_media, sequence_frame, validate_frame
+from argentum_splat.input_source import classify, classify_media, validate_frame
 from argentum_splat.job_progress import read_updates
 
 
 class InputSourceTests(unittest.TestCase):
-    def test_input_panel_accepts_media_but_directs_all_scans_to_scan_panel(self):
+    def test_image_panel_directs_scans_to_scan_panel(self):
         self.assertEqual(classify_media('photo.PNG'), 'image')
-        self.assertEqual(classify_media('clip.MOV'), 'video')
-        self.assertEqual(classify_media('shot_0001.jpg', 1), 'sequence')
         for suffix in ('PLY', 'SOG', 'SPLAT', 'SPZ', 'KSPLAT'):
             for mode in (0, 1):
                 with self.assertRaisesRegex(ValueError, 'SCAN > Splat File'):
@@ -27,48 +25,27 @@ class InputSourceTests(unittest.TestCase):
         for ext in ('ply', 'sog', 'splat', 'spz', 'ksplat'):
             self.assertEqual(classify('scan.' + ext), 'splat')
 
-    def test_video(self):
+    def test_removed_video_formats_are_rejected(self):
         for ext in ('mp4', 'mov', 'avi', 'webm', 'mkv', 'mts', 'm2ts', 'mpeg', 'mpg', 'm4v'):
-            self.assertEqual(classify('clip.' + ext), 'video')
+            with self.assertRaises(ValueError):
+                classify('clip.' + ext)
 
     def test_unsupported(self):
         for name in ('scene.c4d', 'script.py', 'data.json', 'image.exr'):
             with self.assertRaises(ValueError):
                 classify(name)
 
-    def test_sequence_rejects_video_and_splat(self):
-        for name in ('clip.mp4', 'scan.ply'):
-            with self.assertRaises(ValueError):
-                classify(name, 1)
+    def test_removed_sequence_mode_is_rejected(self):
+        for name in ('photo.png', 'clip.mp4', 'scan.ply'):
+            for mode in (1, 2):
+                with self.assertRaises(ValueError):
+                    classify(name, mode)
 
-    def test_invalid_mode(self):
-        with self.assertRaises(ValueError):
-            classify('photo.png', 2)
-
-    def test_frame_range(self):
-        for value in (-1, 100000, .5, True):
+    def test_only_default_frame_is_accepted(self):
+        self.assertEqual(validate_frame(0), 0)
+        for value in (-1, 1, 99999, .5, True):
             with self.assertRaises(ValueError):
                 validate_frame(value)
-        self.assertEqual(validate_frame(99999), 99999)
-
-    def test_sequence_offset_from_selected(self):
-        with tempfile.TemporaryDirectory() as folder:
-            path = Path(folder)/'shot_v2_0041.PNG'
-            expected = path.with_name('shot_v2_0043.PNG')
-            expected.touch()
-            self.assertEqual(sequence_frame(path, 2), expected)
-
-    def test_sequence_hole_is_error(self):
-        with tempfile.TemporaryDirectory() as folder:
-            path = Path(folder)/'shot0001.png'
-            path.touch()
-            path.with_name('shot0003.png').touch()
-            with self.assertRaisesRegex(ValueError, '0002'):
-                sequence_frame(path, 1)
-
-    def test_sequence_requires_number(self):
-        with self.assertRaises(ValueError):
-            sequence_frame('image.png', 0)
 
 
 class ProgressReaderTests(unittest.TestCase):

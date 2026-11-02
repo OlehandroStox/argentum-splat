@@ -92,6 +92,25 @@ class ReleasePackagingTests(unittest.TestCase):
         expected = hashlib.sha256(archive.read_bytes()).hexdigest()+'  '+archive.name+'\n'
         self.assertEqual((archive.parent/'SHA256SUMS.txt').read_text(encoding='ascii'),expected)
 
+    def test_only_declared_checksum_verified_wheel_is_packaged(self):
+        data = b'pinned wheel fixture'
+        name = 'numpy-test.whl'
+        self.write('ArgentumSplat/argentum_splat/numeric_runtime.py',
+                   'WHEEL = '+repr(name)+'\nSHA256 = '+repr(hashlib.sha256(data).hexdigest())+'\n')
+        wheel = self.root/'ArgentumSplat/vendor'/name
+        wheel.parent.mkdir(parents=True, exist_ok=True)
+        wheel.write_bytes(data)
+        self.write('ArgentumSplat/vendor/unrelated.whl')
+        with zipfile.ZipFile(self.build()) as archive:
+            self.assertEqual(archive.read('ArgentumSplat/vendor/'+name), data)
+            self.assertNotIn('ArgentumSplat/vendor/unrelated.whl', archive.namelist())
+        wheel.write_bytes(b'corrupt')
+        with self.assertRaisesRegex(ValueError, 'Missing or corrupt'):
+            self.build()
+        wheel.unlink()
+        with self.assertRaisesRegex(ValueError, 'Missing or corrupt'):
+            self.build()
+
     def test_missing_public_documents_and_invalid_versions_fail_before_packaging(self):
         version_file = 'ArgentumSplat/argentum_splat/__init__.py'
         for value in ('../outside', '0.8.2/elsewhere', '0.8.2\\elsewhere', 'latest'):
