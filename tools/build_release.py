@@ -33,6 +33,24 @@ def release_version(root):
     return values[0]
 
 
+def numeric_wheel(root):
+    """Read the declared optional binary without importing plugin startup code."""
+    metadata = root / 'ArgentumSplat/argentum_splat/numeric_runtime.py'
+    if not metadata.is_file():
+        return None
+    tree = ast.parse(metadata.read_text(encoding='utf8'))
+    values = {node.targets[0].id: ast.literal_eval(node.value)
+              for node in tree.body if isinstance(node, ast.Assign)
+              and isinstance(node.targets[0], ast.Name)
+              and node.targets[0].id in {'WHEEL', 'SHA256'}}
+    name, digest = values.get('WHEEL'), values.get('SHA256')
+    if (not isinstance(name, str) or Path(name).name != name or
+            '/' in name or '\\' in name or not name.endswith('.whl') or
+            not isinstance(digest, str) or not re.fullmatch('[0-9a-f]{64}', digest)):
+        raise ValueError('Invalid numeric wheel declaration.')
+    return root / 'ArgentumSplat/vendor' / name, digest
+
+
 def allowed_path(path, root, directory=False):
     relative = path.relative_to(root)
     if any(part.startswith('.') or part.casefold() in PRIVATE_DIRECTORIES for part in relative.parts):
@@ -48,11 +66,20 @@ def allowed_path(path, root, directory=False):
     if (not path.is_file() or path.name.casefold() in PRIVATE_FILES or
             path.stem.casefold() in {'credentials', 'secrets', 'token', 'tokens', 'password', 'passwords'}):
         return False
+    if path.suffix.casefold() == '.whl':
+        declared = numeric_wheel(root)
+        return declared is not None and path == declared[0]
     return path.suffix.casefold() in SHIP_SUFFIXES or path.name.casefold() == 'license'
 
 
 def release_files(root):
     files = []
+    declared = numeric_wheel(root)
+    if declared is not None:
+        wheel, digest = declared
+        if (not wheel.is_file() or not allowed_path(wheel, root) or
+                hashlib.sha256(wheel.read_bytes()).hexdigest() != digest):
+            raise ValueError('Missing or corrupt declared numeric wheel.')
     for folder in ('ArgentumSplat', 'docs'):
         source = root / folder
         if not source.is_dir() or not allowed_path(source, root, directory=True):
