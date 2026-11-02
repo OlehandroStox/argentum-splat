@@ -11,11 +11,18 @@ subject to its preserved notices; it is not owned exclusively by ARGENTUM.
 No inspected license prohibits voluntary donations for this integration.
 
 The release ZIP includes the plugin, installer scripts, documentation, demo
-media and license texts. It does **not** include AI checkpoints, Python/Node
-executables, wheels, node_modules, CUDA, FFmpeg, Cinema 4D or Redshift binaries.
-Installers download optional dependencies from their upstream hosts. Those
-dependencies remain governed by their own licenses, not the plugin's MIT license.
-This distinction does not waive restrictions on their use.
+media and license texts. Its one bundled binary exception is the unchanged,
+SHA-256-pinned NumPy 2.2.6 CPython 3.11 Windows x86-64 wheel, including its
+upstream native libraries and original notices. This exception was added on
+26 October 2026; see [the numeric runtime notice](vendor/README.md) and its
+[complete primary license bundle](vendor/LICENSE.numpy.txt). These components
+retain their own licenses independently of Argentum Splat's MIT license.
+
+The ZIP does **not** include other wheels, AI checkpoints, Python/Node
+executables, node_modules, CUDA, Brush, Cinema 4D or Redshift binaries.
+Installers download other optional dependencies from their upstream hosts.
+Those dependencies retain their own licenses; the plugin's MIT license does
+not replace their terms.
 
 Do not distribute a copy of your populated AppData runtime as though it were the
 MIT plugin. Redistributing those binaries or models needs a separate review of
