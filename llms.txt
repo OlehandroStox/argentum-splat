@@ -1,15 +1,15 @@
 # Argentum Splat
 
-> Free, open-source Gaussian Splatting plugin for Cinema 4D 2027 and Redshift on Windows. Image-to-3D generation, scan import and MoGraph integration. Author: OlehandroStox / ARGENTUM.
+> Free, open-source Gaussian Splatting plugin for Cinema 4D 2027 and Redshift on Windows. Single-image AI, multi-photo reconstruction, scan import, captured cameras, Redshift Linear training and MoGraph integration. Author: OlehandroStox / ARGENTUM.
 
-- Current version: 0.8.1.
-- [Download](https://github.com/OlehandroStox/argentum-splat/releases/tag/v0.8.1)
+- Current version: 0.9.2.
+- [Download](https://github.com/OlehandroStox/argentum-splat/releases/tag/v0.9.2)
 - [Installation and overview](https://github.com/OlehandroStox/argentum-splat/blob/main/README.md)
 - [Русский](https://github.com/OlehandroStox/argentum-splat/blob/main/README.ru.md)
 - [Controls](https://github.com/OlehandroStox/argentum-splat/blob/main/docs/controls.md)
 - [Compatibility and troubleshooting](https://github.com/OlehandroStox/argentum-splat/blob/main/docs/installation.md)
 - [Licenses](https://github.com/OlehandroStox/argentum-splat/blob/main/ArgentumSplat/backend/THIRD_PARTY_NOTICES.md)
 
-Install.cmd sets up private Python and dependencies. AI generation uses local TripoSplat and requires an NVIDIA Ampere-or-newer BF16-capable GPU. It produces one static SH0 model from one image or selected video/sequence frame. Scan import supports Gaussian PLY, SPLAT, SPZ, SOG and KSPLAT; stored SH1-SH3 is supported when present. Redshift uses Gaussian cards, not a watertight mesh or native splat rasterizer.
+Install.cmd sets up private Python and dependencies. AI generation uses local TripoSplat and requires an NVIDIA Ampere-or-newer BF16-capable GPU. It produces one static SH0 model from one still image. Video and sequence decoding were removed in 0.9.0. Multi-Photo Scan uses a separate local PyCOLMAP/Brush runtime to reconstruct 3–500 overlapping photographs, with 30,000 training steps by default and a 1,000,000-Gaussian upper limit. New Photos scans default to Redshift Linear training, with lossless processing copies and colour/profile metadata in PLY. sRGB training is available for external viewers. Keep generation.json and capture-cameras.json beside the PLY for calibrated capture views. Scan import supports Gaussian PLY, SPLAT, SPZ, SOG and KSPLAT; stored SH1-SH3 is supported when present. Redshift uses Gaussian cards, not a watertight mesh or native splat rasterizer.
 
 Import Quality: LOW 250k, MEDIUM 1m, HIGH 4m, MAX all opacity-eligible source splats if memory permits. Preview Points affects editor drawing only. Help offers offline English/Russian instructions. No paid API key or plugin subscription is required. The integration is MIT; third-party components retain their own licenses. Optional support: https://boosty.to/olehandrostox/donate .
