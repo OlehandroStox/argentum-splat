@@ -4,7 +4,7 @@
 
 ## Install the plugin
 
-Download **ArgentumSplat-0.8.2-C4D2027-Windows.zip** from [Releases](https://github.com/OlehandroStox/argentum-splat/releases), extract it, and close Cinema 4D. Run `ArgentumSplat/Install.cmd` from the extracted folder. Do not run it inside the ZIP viewer.
+Download **ArgentumSplat-0.9.2-C4D2027-Windows.zip** from [Releases](https://github.com/OlehandroStox/argentum-splat/releases), extract it, and close Cinema 4D. Run `ArgentumSplat/Install.cmd` from the extracted folder. Do not run it inside the ZIP viewer.
 
 The installer copies the plugin, sets up the extra-format converter, and prepares the private Python/AI environment and model weights. **You do not need to install Python or Node.js manually.** Choose your preferences folder if more than one C4D 2027 installation is found, then wait for the final summary. If no preferences folder exists yet, launch C4D 2027 once and close it before installing.
 
@@ -31,7 +31,9 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\Install.ps1 -CoreOnly
 powershell -NoProfile -ExecutionPolicy Bypass -File .\Install.ps1 -PreferencesFolder "C:\path\to\Maxon Cinema 4D 2027_preferences"
 ```
 
-`-CoreOnly` supports native Gaussian PLY, SPLAT and SPZ v2/v3 using C4D's built-in Python. `-ImportOnly` also prepares bundled SOG, KSPLAT, SPZ v4 and packed PlayCanvas PLY. Neither mode prepares AI image/video generation. The execution-policy option applies to that PowerShell process only.
+`-CoreOnly` supports native Gaussian PLY, SPLAT and SPZ v2/v3. `-ImportOnly` also prepares compressed scan converters. Neither installs the Image AI weights. Photos is installed separately with **Photos → Set Up Photos**.
+
+All installation modes include the optional numeric accelerator. The plugin first reuses an available NumPy. On Windows x64 with Cinema 4D's CPython 3.11, it can extract the bundled, SHA-256-verified NumPy 2.2.6 wheel to `%LOCALAPPDATA%\ArgentumSplat\numeric`. This happens locally without pip, internet access or installing files into Cinema 4D's Python directory. If the runtime is unavailable or incompatible, calculations use the ordinary Python path. Keep the whole `vendor` directory when copying the plugin; its components retain their [upstream licenses](../ArgentumSplat/vendor/README.md).
 
 ## Manual copy
 
@@ -43,8 +45,8 @@ For a manual install, open C4D Preferences → **Open Preferences Folder**, clos
     ├── ArgentumSplat.pyp
     ├── argentum_splat/
     ├── backend/
-    └── res/
-```
+    ├── res/
+    └── vendor/
 
 After a manual copy, restart C4D. Click **Set Up AI / Extra Formats** to run the same automatic dependency setup; wait for Status to finish. Manual copying by itself does not download the AI environment or converter.
 
@@ -56,9 +58,7 @@ Setup uses a separate environment at `%LOCALAPPDATA%\ArgentumSplat\runtime`. A w
 
 Initial downloads also include PyTorch CUDA wheels and multiple model checkpoints. Keep several GB available for downloads, environment and weights. Subsequent setup checks readiness and skips installation when components are ready. To recheck/install the AI dependencies and verify model files, run:
 
-```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\setup_backend.ps1 -Repair
-```
 
 Advanced users can explicitly provide an existing compatible 64-bit Python with `setup_backend.ps1 -PythonExe "C:\path\to\python.exe"`; normal installation does not require this. The supported AI setup is Windows x64 / NVIDIA; CPU-only, AMD and macOS inference are not supported here.
 
@@ -66,7 +66,6 @@ Advanced users can explicitly provide an existing compatible 64-bit Python with 
 
 Bundled SOG, KSPLAT, SPZ v4 and packed PlayCanvas PLY use the PlayCanvas converter installed by full setup, `-ImportOnly`, or the combined setup button. Alternatively, run `setup_formats.ps1` from PowerShell. It uses a suitable Node 22+ installation or downloads the pinned official portable Node runtime. Files are converted locally; originals remain unchanged and the output is cached under `%LOCALAPPDATA%\ArgentumSplat\converted`.
 
-Native Gaussian PLY, SPLAT and SPZ v2/v3 work without AI weights or the converter. Video/frame extraction needs the separate Python runtime with PyAV.
 
 ## Troubleshooting
 
@@ -79,7 +78,6 @@ Native Gaussian PLY, SPLAT and SPZ v2/v3 work without AI weights or the converte
 | Black RS Render View | Confirm IPR is started, the render camera sees the model, and the object/material loaded successfully. Apply Source Fidelity for self-lit source colour. If data is loaded but layers disappear, inspect transparency depth or use Set Redshift Detail Quality. |
 | Points in the viewport | Point Preview is enabled. It does not reduce Redshift output. Disable it to see cards in the editor. |
 | SH sliders disabled | The file has no SH1–SH3 coefficients. Single-image TripoSplat results are SH0. |
-| Video/sequence fails | Preview the selected frame. Frame index starts at 0; sequences use a filename offset. Missing frames, unsupported codecs and corrupt media report errors in Status. |
 | SCAN load takes time | Progress covers reading, preparation and C4D assembly. First import validates all input records, even with Maximum Splats set lower. Cancel keeps the last complete model. An unchanged reload reuses prepared data. A first load of millions of records can still take a minute or longer. |
 | LOOK / orbit feels slow | Keep Point Preview on. New objects preview 50,000 points; lower this if editor drawing is slow. Surface cards (Camera-Facing off) reuse geometry when the camera moves; SH colour updates after motion settles. Weight edits reuse geometry; colour edits still visit loaded splats in the background. Redshift convergence takes additional time. Maximum Splats reduces full model memory; Preview Points affects only drawing. |
 | Out of memory | Close other GPU workloads, lower Gaussian Count for generation or Maximum Splats for import, and allow memory for both AI and C4D/Redshift. |
@@ -93,7 +91,6 @@ Installer logs are in `%LOCALAPPDATA%\ArgentumSplat\installer\logs`; the setup s
 This preview deliberately preserves the development IDs used by existing local scenes:
 
 | Registration | ID |
-| --- | --- |
 | Object | 1000007 |
 | Toolbar command | 1000008 |
 | Background-job message plugin | 1000009 |
@@ -105,3 +102,18 @@ For evaluation, use a separate C4D preferences/plugin directory with no conflict
 ## Uninstall
 
 Close C4D and move `ArgentumSplat` out of its `plugins` directory. Generated models and the optional runtime remain in `%LOCALAPPDATA%\ArgentumSplat` so they are not lost with the plugin. Keep those files if you need your results; remove them manually only when you no longer need them.
+
+## Photos
+
+PHOTOS — ONE SCAN FROM MULTIPLE VIEWS
+
+Choose Photos Folder with pictures of one stationary subject. JPG, PNG, WebP, TIFF and BMP are accepted directly inside the folder; subfolders are ignored. Minimum 3, maximum 500. Start with 10–50 sharp overlapping views. Move the camera around the subject; keep subject and lighting still. Unrelated images, duplicates, blur, reflections, transparency and missing overlap can prevent alignment.
+
+Set Up Photos downloads its separate private Python, PyCOLMAP and Brush (about 250 MB). Image AI weights are not required. CPU alignment, lens correction and GPU Gaussian training run locally. Photos are never uploaded. Brush needs a compatible GPU and current driver; memory depends on resolution and point count.
+
+Training Steps defaults to 30,000. Maximum Gaussians defaults to 1,000,000: this is an upper limit, not a guaranteed result count. Photo Resolution is the longest side of processing copies; original photos are unchanged. Start with defaults and Reconstruct from Photos. Training progress shows elapsed time and target steps, not an invented percentage.
+
+Cancel Processing stops the owned processes and keeps the previous scan. Each run has a new output folder. A completed PLY is imported if input selection is unchanged. alignment.json lists used and unused photographs: at least 60% and at least 3 must align. Partial alignment can leave holes. generation.json contains an estimated calibrated source view; scale is arbitrary. Copy it alongside the PLY when moving projects. Keep the original Photos Folder separately to reconstruct again.
+
+
+Single Image predicts a scene from one image. Multi-Photo Scan reconstructs photographed surfaces from 3–500 overlapping views. Saved scenes keep their existing training settings. Capture cameras are saved in capture-cameras.json beside the PLY; keep generation.json alongside it too. Use Captured View and Use Captured Camera to return to a calibrated view. Unseen sides require more photographs.
