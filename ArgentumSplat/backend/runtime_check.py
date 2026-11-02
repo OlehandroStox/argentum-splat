@@ -68,7 +68,6 @@ def check_runtime(runtime):
                 raise ValueError('Package needs setup: ' + name)
     import torch
     import torchvision
-    import av
     from PIL import Image
     if torch.__version__ != '2.9.1+cu128' or torchvision.__version__.split('+')[0] != '0.24.1':
         raise ValueError('The pinned CUDA packages need setup.')

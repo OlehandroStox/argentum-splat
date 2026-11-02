@@ -54,7 +54,7 @@ def validate_request(request):
     image = Path(request.get("image_path", "")).expanduser().resolve()
     if not image.is_file():
         raise ValueError("Input image does not exist.")
-    mode = integer(request, 'input_mode', 0, 0, 1)
+    mode = integer(request, 'input_mode', 0, 0, 0)
     validate_frame(request.get('source_frame', 0))
     if classify(image, mode) == 'splat':
         raise ValueError('Load this splat file directly in Cinema 4D.')
@@ -62,7 +62,7 @@ def validate_request(request):
     if not isinstance(output_value, str) or not output_value.strip():
         raise ValueError("output_dir is required.")
     output = Path(output_value).expanduser().resolve()
-    count = integer(request, "num_gaussians", 65536, 32768, 262144)
+    count = integer(request, "num_gaussians", 65536, 32768, 1048576)
     if count % 32:
         raise ValueError("num_gaussians must be a multiple of 32.")
     steps = integer(request, "steps", 20, 1, 100)
@@ -104,14 +104,11 @@ def run_job(request):
     )}
     if any(path.exists() for path in outputs.values()):
         raise ValueError("Output directory already contains a generation. Choose a new job directory.")
-    progress('media', 0., 'Reading selected input frame')
-    source, source_media = load_source(image, request.get('input_mode', 0),
-        request.get('source_frame', 0), progress=lambda current, target: progress(
-            'media', .005 * (current + 1) / (target + 1),
-            'Reading video frame %d / %d' % (current, target)))
+    progress('image', 0., 'Reading input image')
+    source, source_media = load_source(image, request.get('input_mode', 0), request.get('source_frame', 0))
     source.save(outputs['input_frame_path'])
     if request.get('preview_only'):
-        progress('complete', 1., 'Selected frame ready')
+        progress('complete', 1., 'Image preview ready')
         return {'ok': True, 'preview_only': True,
                 'input_frame_path': str(outputs['input_frame_path']), 'source_media': source_media}
     marker = runtime / "runtime.json"
