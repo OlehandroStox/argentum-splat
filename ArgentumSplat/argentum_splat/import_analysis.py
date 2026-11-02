@@ -31,9 +31,16 @@ def capture_view_score(splats, retained, forward=(0.,0.,1.)):
         px,py=x*focal/z,y*focal/z
         if abs(px)>=width*.5 or abs(py)>=height*.5:
             continue
-        _,u,v,_ = g.card_axes(splat,(0.,0.,0.),1.,1.,False,True,projection)
+        factors=[]
+        _,u,v,_ = g.card_axes(splat,(0.,0.,0.),1.,1.,False,True,projection,factors)
+        # Match the projected render's filter-area compensation and visibility
+        # cutoff. Filter-expanded but effectively invisible splats cannot be
+        # evidence of detailed surfaces surrounding the camera.
+        alpha=min(1.,max(0.,splat.opacity))*factors[0]
+        if alpha <= 1./255.:
+            continue
         major,minor=math.hypot(*u)*focal/(3*z),math.hypot(*v)*focal/(3*z)
-        amount=min(width*height,max(0.,splat.opacity)*major*minor)
+        amount=min(width*height,alpha*major*minor)
         mass+=amount
         if major > 8.:
             coarse+=amount
@@ -54,20 +61,21 @@ def capture_view_score(splats, retained, forward=(0.,0.,1.)):
 
 
 def choose_capture_view(splats, retained):
-    """For an accepted environment, avoid looking straight into a close wall.
+    """Choose an admitted horizontal view without assuming an author's heading.
 
-    Keep the conservative forward-view admission test. Once accepted, compare
-    the four horizontal directions at the same origin, favouring full coverage
-    with small projected Gaussians. No source coordinates or geometry change.
+    Apply the same conservative admission test in all four directions. An empty
+    or coarse +Z view must not hide a detailed interior in another direction.
+    Favour full coverage with small projected Gaussians at the same origin.
+    No source coordinates or geometry change, and this is an estimated view.
     """
-    first = capture_view_score(splats, retained)
-    if not first['available']:
-        return first
-    candidates = [first] + [capture_view_score(splats, retained, direction)
-        for direction in ((1.,0.,0.),(0.,0.,-1.),(-1.,0.,0.))]
-    return max((view for view in candidates if view['available']),
+    candidates = [capture_view_score(splats, retained, direction)
+        for direction in ((0.,0.,1.),(1.,0.,0.),(0.,0.,-1.),(-1.,0.,0.))]
+    accepted = [view for view in candidates if view['available']]
+    if not accepted:
+        return candidates[0]
+    return max(accepted,
                key=lambda view: view['detail_coverage']*(1.-view['coarse_fraction'])*
-                   math.sqrt(view['detail_depth']/max(first['detail_depth'],1e-300)))
+                   math.sqrt(view['detail_depth']))
 
 
 def analyse(cloud, progress=None, limit=8192):

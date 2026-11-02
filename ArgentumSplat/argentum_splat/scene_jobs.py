@@ -42,6 +42,7 @@ class InteractiveScan:
         self.queued_request = None
         self.queued_at = 0.
         self.mesh_template = None
+        self.ready_card_indices = None
         self.display_key = None
         self.last_scan_metrics = {}
         self.source_analysis = None
@@ -201,8 +202,12 @@ class InteractiveScan:
                     spatial, bounds = other.spatial, other.bounds
                 if colors is None and getattr(other, 'color_key', None) == request['color_key']:
                     colors = other.colors
+            source_reused = cloud is not None
+            view_only = (source_reused and self.mesh_template is not None and
+                         loading.view_only_request(request, self.ready_request))
             worker_request = dict(path=path, max_splats=key[3], min_opacity=key[4], raw_spz=key[5],
                 values=request['values'], camera=request['camera'],
+                view_only=view_only,
                 converted_spz=converted and source.lower().endswith('.spz') and not key[5])
             from . import scene_setup
             worker_request['analysis'] = analysis
@@ -211,11 +216,15 @@ class InteractiveScan:
                                          bounds)
             self.job = dict(kind='scan', worker=worker, request=request, dir=Path(path).parent,
                             started=time.perf_counter(), builder=None, last_progress=0.,
+                            source_reused=source_reused, view_only=view_only,
                             cancel_reason=None, max_slice_seconds=0.,
                             foreground=explicit or self.mesh_template is None or key != self.load_key)
             self.queued_request = None
             plugin.JOBS.add(self)
-            self.set_progress('Reading scan' if cloud is None else 'Updating scan', 0.)
+            same_ready_source = self.ready_request is not None and self.ready_request[0][0] == key
+            self.set_progress('Updating camera view — source reused' if view_only else
+                              'Updating scan settings' if source_reused and same_ready_source else
+                              'Preparing scan — source reused' if source_reused else 'Reading scan', 0.)
             if self.job['foreground']:
                 self.show_progress()
             worker.start()
@@ -354,7 +363,10 @@ class InteractiveScan:
             if job['builder'] is None:
                 job['builder'] = self.assemble_scan(job)
             started = time.perf_counter()
-            while time.perf_counter()-started < .012:
+            # Spend at most a short UI slice per timer, shared by active jobs.
+            # The old 12 ms / 40 ms cadence spent most assembly time idle.
+            budget = max(.002, .020 / max(1, len(plugin.JOBS)))
+            while time.perf_counter()-started < budget:
                 message, amount = next(job['builder'])
                 self.progress_message = message
                 self.progress_amount = max(self.progress_amount or 0., amount)
@@ -386,8 +398,10 @@ class InteractiveScan:
                            analysis=analysis, analyse_only=False)
         same_spatial = request['spatial_key'] == job['request']['spatial_key']
         same_colors = request['color_key'] == job['request']['color_key']
-        spatial = data.get('spatial') if same_spatial else None
-        colors = data.get('colors') if same_colors and data.get('colors_are_working') else None
+        spatial = data.get('spatial', old.spatial) if same_spatial else None
+        colors = data.get('colors', old.colors) if same_colors else None
+        new_request['colors_are_working'] = bool(colors is not None and
+            data.get('colors_are_working', getattr(old, 'colors_are_working', old.colors is not None)))
         job['request'] = request
         job['builder'] = None
         job['retargeting'] = False
@@ -395,7 +409,7 @@ class InteractiveScan:
         job['analysis_read_seconds'] = job.get('analysis_read_seconds', 0.)+old.timings.get('read_seconds', 0.)
         job.pop('latest_view_key', None)
         job['worker'] = loading.Preparation(new_request, cloud, spatial, colors,
-                                           data.get('bounds') if spatial is not None else None)
+                                           data.get('bounds', old.bounds) if spatial is not None else None)
         self.set_progress('Updating latest camera view — previous view is temporary.', 0.)
         job['worker'].start()
 
@@ -418,8 +432,14 @@ class InteractiveScan:
         request['material'] = self.op[I.MATERIAL]
         request['key'] = (*request['key'][:-1], request['material'])
         prepared = spatial+(colors,)
+        previous_indices = getattr(self, 'ready_card_indices', None)
+        current_indices = data.get('card_indices')
+        same_mapping = (previous_indices is not None and current_indices is not None
+                        and previous_indices == current_indices)
+        view_refresh = (self.ready_request is not None and
+                        self.ready_request[0][0] == request['source_key'] and same_mapping)
         if (self.mesh_template is not None and self.ready_request is not None
-                and request['spatial_key'] == self.ready_request[0]):
+                and (request['spatial_key'] == self.ready_request[0] or view_refresh)):
             # Attribute-only updates still allocate an owned mesh and a later
             # display copy. Admit them against current free RAM just like new
             # geometry, before entering the indivisible native clone call.
@@ -434,7 +454,8 @@ class InteractiveScan:
                 update_colors=previous[1] != request['color_key'],
                 update_opacity=previous[2] != request['opacity'], update_weights=weights,
                 material=request['material'], update_material=previous[4] != request['material'],
-                indices=data.get('card_indices'))
+                indices=current_indices,
+                update_geometry=previous[0] != request['spatial_key'])
         else:
             steps = plugin.build_mesh_steps(cloud, prepared, request['material'],
                                              request['opacity'], request['values'],
@@ -442,6 +463,9 @@ class InteractiveScan:
         while True:
             try:
                 stage, done, count = next(steps)
+                if job.get('view_only'):
+                    stage = {'Build Gaussian cards': 'Update visible camera cards',
+                             'Allocate Gaussian cards': 'Allocate updated camera view'}.get(stage, stage)
                 yield ('{}: {:,} / {:,}'.format(stage,done,count), .84+.15*done/max(1,count))
             except StopIteration as finished:
                 return finished.value, data
@@ -467,6 +491,7 @@ class InteractiveScan:
         self.prepare_key = (self.spatial_key,self.color_key)
         self.cache_key = None
         self.mesh_template = mesh
+        self.ready_card_indices = data.get('card_indices')
         self.ready_request = request['key']
         self.display_key = None
         self.queued_request = None
@@ -479,7 +504,8 @@ class InteractiveScan:
             total_seconds=time.perf_counter()-job['started'],
             max_ui_slice_seconds=job['max_slice_seconds'],
             retained=len(self.cloud.splats), total=self.cloud.total_count)
-        self.last_scan_metrics.update(render_cards=mesh.GetPolygonCount(), view_restarts=job.get('view_restarts',0))
+        self.last_scan_metrics.update(render_cards=mesh.GetPolygonCount(), view_restarts=job.get('view_restarts',0),
+                                      source_reused=bool(job.get('source_reused')), view_only=bool(job.get('view_only')))
         if 'analysis_read_seconds' in job:
             self.last_scan_metrics['read_seconds'] += job['analysis_read_seconds']
         if self.source_analysis is not None:
@@ -495,8 +521,12 @@ class InteractiveScan:
         eligible = self.cloud.metadata.get('eligible_count', total)
         detail = (' · Sampled source' if retained < eligible else
                   ' · Opacity-filtered only' if retained < total else ' · Full source')
-        self.set_progress('Ready: {:,} / {:,} splats ({:.1f}%) · {:.1f}s · SH {}{}'.format(
-            retained, total, 100.*retained/max(1,total), self.last_scan_metrics['total_seconds'],
+        if self.queued_request is not None:
+            detail += (' · Latest view pending' if loading.view_only_request(current, self.ready_request) else
+                       ' · Latest changes pending')
+        label = 'View updated' if job.get('view_only') else 'Ready'
+        self.set_progress('{}: {:,} / {:,} splats ({:.1f}%) · {:.1f}s · SH {}{}'.format(
+            label, retained, total, 100.*retained/max(1,total), self.last_scan_metrics['total_seconds'],
             self.cloud.metadata.get('sh_degree',0),
             detail), 1.)
 

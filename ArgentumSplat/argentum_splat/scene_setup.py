@@ -16,11 +16,20 @@ def source_marker(key):
 
 def camera_state(cam):
     mg=cam.GetMg()
-    return json.dumps(loading.view_key([xyz(a) for a in (mg.off,mg.v1,mg.v2,mg.v3)] +
-                     [float(cam[k]) for k in (c4d.CAMERA_FOCUS,c4d.CAMERAOBJECT_APERTURE,
-                      c4d.CAMERA_PROJECTION,c4d.CAMERAOBJECT_NEAR_CLIPPING,
-                      c4d.CAMERAOBJECT_NEAR_CLIPPING_ENABLE,c4d.CAMERAOBJECT_FAR_CLIPPING,
-                      c4d.CAMERAOBJECT_FAR_CLIPPING_ENABLE)]))
+    state=[xyz(a) for a in (mg.off,mg.v1,mg.v2,mg.v3)] + [float(cam[k]) for k in
+        (c4d.CAMERA_FOCUS,c4d.CAMERAOBJECT_APERTURE,c4d.CAMERA_PROJECTION,
+         c4d.CAMERAOBJECT_NEAR_CLIPPING,c4d.CAMERAOBJECT_NEAR_CLIPPING_ENABLE,
+         c4d.CAMERAOBJECT_FAR_CLIPPING,c4d.CAMERAOBJECT_FAR_CLIPPING_ENABLE)]
+    # Omit defaults so untouched Import View cameras saved by earlier versions
+    # keep their ownership marker. A manual film shift/parallel zoom must stop
+    # subsequent automatic reframing just like a manual lens or pose edit.
+    for name, default in (('CAMERAOBJECT_FILM_OFFSET_X',0.),
+                          ('CAMERAOBJECT_FILM_OFFSET_Y',0.),('CAMERA_ZOOM',1.)):
+        key=getattr(c4d,name,None)
+        value=cam[key] if key is not None else None
+        if value is not None and float(value) != default:
+            state.append((name,float(value)))
+    return json.dumps(loading.view_key(state))
 
 
 def automatic_available(op):
@@ -45,6 +54,26 @@ def automatic_available(op):
 def needs_initial_analysis(op,key):
     return (bool(op[I.AUTO_FRAME]) and op[I.AUTO_FRAME_SOURCE] != source_marker(key)
             and automatic_available(op))
+
+
+def capture_near(near, scale, forward, right, up, aspect):
+    """Conservative world-depth bound for the inferred source-origin view.
+
+    Under shear, transverse source coordinates contribute to camera depth.
+    Bound that contribution over both the analysis's 16:9 cone and the output
+    cone. If either can cross the eye plane, use the minimum near distance.
+    The axes include the complete object/parent transform, not import scale.
+    """
+    length=math.hypot(*forward)
+    if not length or not math.isfinite(length):
+        return 1e-9
+    direction=tuple(v/length for v in forward)
+    transverse=math.tan(math.radians(30.))*(
+        max(16./9.,aspect)*abs(sum(a*b for a,b in zip(direction,right)))+
+        abs(sum(a*b for a,b in zip(direction,up))))
+    bound=length-transverse
+    distance=near*abs(scale)*max(0.,bound)
+    return max(1e-9,distance) if math.isfinite(distance) else 1e-9
 
 
 def frame_scan(op, report, automatic=False):
@@ -81,14 +110,20 @@ def frame_scan(op, report, automatic=False):
     # cameras are protected by automatic_available; explicit AI metadata wins.
     if (not source_camera and hint.get('available') and
             Path(str(op[I.FILE] or '')).suffix.lower()=='.sog' and op[I.AUTO_SOG_ORIENTATION]):
-        eye,target=point((0.,0.,0.)),point(hint.get('forward',(0.,0.,1.)))
+        eye=point((0.,0.,0.))
+        source_forward=c4d.Vector(*hint.get('forward',(0.,0.,1.)))
+        if flip: source_forward.y=-source_forward.y
         source_up=c4d.Vector(0.,1. if flip else -1.,0.)
-        f=(target-eye).GetNormalized()
-        r=mg.MulV(source_up).Cross(f).GetNormalized()
+        world_forward=mg.MulV(source_forward)
+        world_up=mg.MulV(source_up)
+        world_right=mg.MulV(source_forward.Cross(source_up))
+        f=world_forward.GetNormalized()
+        r=world_up.Cross(f).GetNormalized()
         u=f.Cross(r).GetNormalized()
         fov=2.*math.atan(math.tan(math.radians(30.))*aspect)
         fit.update(eye=xyz(eye),right=xyz(r),up=xyz(u),forward=xyz(f),
-                   near=hint['near']*scale)
+                   near=capture_near(hint['near'],scale,xyz(world_forward),
+                                     xyz(world_right),xyz(world_up),aspect))
         capture_view=True
     # The inferred AI source pose gives a better starting view than a generic
     # box fit; widen the FOV for non-square output so the source stays visible.
@@ -105,7 +140,10 @@ def frame_scan(op, report, automatic=False):
             original_fov=float(source_camera['fov_radians'])
             if not 0 < original_fov < math.pi or not all(math.isfinite(v) for a in (eye,target,u,f,r) for v in xyz(a)):
                 raise ValueError('Invalid source view.')
-            fov=2*math.atan(math.tan(original_fov*.5)*max(1.,aspect))
+            source_aspect = float(source_camera.get('width', 1))/float(source_camera.get('height', 1))
+            if not math.isfinite(source_aspect) or source_aspect <= 0:
+                raise ValueError('Invalid source camera aspect.')
+            fov=2*math.atan(math.tan(original_fov*.5)*max(1.,aspect/source_aspect))
             if not 0 < fov < math.pi or r.GetLength()<.5:
                 raise ValueError('Invalid source view.')
             distance=(target-eye).GetLength()
@@ -138,8 +176,8 @@ def frame_scan(op, report, automatic=False):
         op[I.IMPORT_CAMERA]=camera
         op[I.IMPORT_CAMERA_STATE]=camera_state(camera)
         report['framing']=(
-            'AI source view fitted to output aspect.' if source_camera else
-            'Capture-space view: detailed environment surrounds the source origin.' if capture_view else
+            'Source view fitted to output aspect.' if source_camera else
+            'Automatic interior view: detailed coverage around the source origin.' if capture_view else
             'Frame fitted to '+report.get('frame_focus','overview')+'; orientation follows the current view.')
         op[I.SOURCE_INFO]=import_analysis.summary(report,scale)+'\n'+report['framing']
     finally:

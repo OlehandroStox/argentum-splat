@@ -7,6 +7,26 @@ import statistics
 from . import core
 
 
+class SpatialData(tuple):
+    """Spatial vectors and their optional image-filter opacity compensation.
+
+    Tuple iteration/unpacking keeps the existing four-vector contract. Adding
+    the color buffer preserves the factors without copying another cloud-sized
+    array. Source opacity itself is never changed by this derived render data.
+    """
+
+    def __new__(cls, values, opacity_factors=None):
+        result = super().__new__(cls, values)
+        result.opacity_factors = opacity_factors
+        return result
+
+    def __add__(self, other):
+        result = tuple.__add__(self, other)
+        if result is NotImplemented:
+            return NotImplemented
+        return type(self)(result, self.opacity_factors)
+
+
 class Vec3Buffer:
     """Contiguous float64 vectors without retaining one Python tuple per point.
 
@@ -261,7 +281,7 @@ def _compile_projection(projection, pixel_variance):
             float(projection['width']), float(projection['height']), offset_x, offset_y, hidden)
 
 
-def _projected_axes(axes, center, camera, projection):
+def _projected_axes(axes, center, camera, projection, opacity_factors=None):
     """EWA first-order perspective covariance, plus an image-space low-pass.
 
     Cards lie in a plane parallel to the image, so the ellipse defined by the
@@ -271,6 +291,9 @@ def _projected_axes(axes, center, camera, projection):
     Never fall back to a tilted card behind the projection camera: a large
     background Gaussian can then intersect rays in front of that camera.
     """
+    if opacity_factors is not None:
+        # Every early return below is a collapsed, invisible source card.
+        opacity_factors.append(0.)
     (right, up, inverse, orthographic, scale_x, scale_y, pixel_variance,
      width, height, offset_x, offset_y, hidden) = projection
     relative = (center[0]-camera[0], center[1]-camera[1], center[2]-camera[2])
@@ -314,9 +337,10 @@ def _projected_axes(axes, center, camera, projection):
     xx = sum(px*px for px, py in projected)
     xy = sum(px*py for px, py in projected)
     yy = sum(py*py for px, py in projected)
-    determinant = sum((projected[i][0]*projected[j][1] -
-                       projected[i][1]*projected[j][0])**2
-                      for i, j in ((0, 1), (0, 2), (1, 2)))
+    original_determinant = sum((projected[i][0]*projected[j][1] -
+                                projected[i][1]*projected[j][0])**2
+                               for i, j in ((0, 1), (0, 2), (1, 2)))
+    determinant = original_determinant
     determinant += ridge*(xx+yy) + ridge*ridge
     major_squared = (xx+yy+2.*ridge+math.hypot(xx-yy, 2.*xy))/2.
     if major_squared <= 0. or determinant <= 0.:
@@ -325,8 +349,8 @@ def _projected_axes(axes, center, camera, projection):
     minor = min(sigma_limit, largest*math.sqrt(determinant/major_squared))
     angle = .5*math.atan2(2.*xy, xx-yy)
     cosine, sine = math.cos(angle), math.sin(angle)
-    half_x = 3.*(major*abs(cosine) + minor*abs(sine))
-    half_y = 3.*(major*abs(sine) + minor*abs(cosine))
+    half_x = 3.34*(major*abs(cosine) + minor*abs(sine))
+    half_y = 3.34*(major*abs(sine) + minor*abs(cosine))
     screen_x, screen_y = x/world_pixel_x, y/world_pixel_y
     if offset_x or offset_y:
         screen_x += offset_x
@@ -346,6 +370,13 @@ def _projected_axes(axes, center, camera, projection):
     if dot(normal, relative) > 0.:
         v = mul(v, -1.)
         normal = mul(normal, -1.)
+    if opacity_factors is not None:
+        # A normalized Gaussian's integral is proportional to sqrt(det(C)).
+        # Enlarging C for the pixel low-pass without reducing its amplitude
+        # invents energy, especially for bright subpixel splats. The ratio is
+        # scale invariant, so use the stable normalized Cauchy-Binet values
+        # above, before screen-size capping. A rank-one source has zero area.
+        opacity_factors[-1] = min(1., math.sqrt(max(0., original_determinant/determinant)))
     return u, v, normal
 
 
@@ -361,7 +392,8 @@ def projected_card_axes(splat, camera, global_scale, splat_scale, flip_y,
     return card_axes(splat, camera, global_scale, splat_scale, flip_y, True, compiled)
 
 
-def card_axes(splat, camera, global_scale, splat_scale, flip_y, camera_facing, _projection=None):
+def card_axes(splat, camera, global_scale, splat_scale, flip_y, camera_facing,
+              _projection=None, _opacity_factors=None):
     axes = tuple(tuple(v) for v in core.gaussian_axes(
         splat, global_scale=global_scale, splat_scale=splat_scale, flip_y=flip_y))
     center = core.transform_position(splat.position, global_scale, flip_y)
@@ -375,7 +407,7 @@ def card_axes(splat, camera, global_scale, splat_scale, flip_y, camera_facing, _
             normal = mul(normal, -1.)
         return center, mul(u, 3.), mul(v, 3.), normal
     if _projection is not None:
-        projected = _projected_axes(axes, center, camera, _projection)
+        projected = _projected_axes(axes, center, camera, _projection, _opacity_factors)
         if projected is not None:
             return (center,) + projected
     # Orthographic projection of full covariance on the local camera plane.
@@ -460,6 +492,11 @@ def prepare_geometry(cloud, settings, camera=(0., 0., -500.), progress=None):
     settings['compact_buffers'] opts into float64 Vec3Buffer outputs. Otherwise
     return the existing lists. Both modes use the same geometry calculations.
     """
+    from .fast_geometry import prepare_geometry as prepare_fast
+    accelerated = prepare_fast(cloud, settings, camera, progress)
+    if accelerated is not None:
+        if settings.get("gaussian_profile"): accelerated.opacity_factors = None
+        return accelerated
     compact = bool(settings.get("compact_buffers", False))
     vector_container = Vec3Buffer if compact else list
     centers, u_axes, v_axes, normals = (vector_container() for _ in range(4))
@@ -471,11 +508,12 @@ def prepare_geometry(cloud, settings, camera=(0., 0., -500.), progress=None):
     pixel_variance = settings.get("pixel_variance", 0.)
     projection = (_compile_projection(projection, pixel_variance)
                   if camera_facing and projection else None)
+    opacity_factors = array('d') if projection is not None and pixel_variance > 0. else None
     for index, splat in enumerate(core.iter_attributes(cloud, 'geometry')):
         if progress and index % 2048 == 0:
             progress('Prepare geometry', index, len(cloud.splats))
         center, u, v, normal = card_axes(splat, camera, scale,
-            settings.get("splat_scale", 1.), flip_y, camera_facing, projection)
+            settings.get("splat_scale", 1.), flip_y, camera_facing, projection, opacity_factors)
         centers.append(center)
         u_axes.append(u)
         v_axes.append(v)
@@ -488,13 +526,17 @@ def prepare_geometry(cloud, settings, camera=(0., 0., -500.), progress=None):
         normals = smooth_normals(centers, normals, widths, settings.get("smoothing", 0), progress)
     if compact and not isinstance(normals, Vec3Buffer):
         normals = Vec3Buffer(normals)
-    return centers, u_axes, v_axes, normals
+    return SpatialData((centers, u_axes, v_axes, normals), None if settings.get("gaussian_profile") else opacity_factors)
 
 
 def prepare_colors(cloud, settings, camera=(0., 0., -500.), centers=None, progress=None):
     """Evaluate appearance, optionally returning a compact float64 buffer."""
     if centers is not None and len(centers) != len(cloud.splats):
         raise ValueError("Color preparation needs one center per splat.")
+    from .fast_geometry import prepare_colors as prepare_fast
+    accelerated = prepare_fast(cloud, settings, camera, centers, progress)
+    if accelerated is not None:
+        return accelerated
     colors = Vec3Buffer() if settings.get("compact_buffers", False) else []
     if not cloud.splats:
         return colors
@@ -558,7 +600,7 @@ def prepare(cloud, settings, camera=(0., 0., -500.)):
 _GAUSSIAN_FLOOR = math.exp(-4.)
 
 
-def gaussian_support(opacity):
+def gaussian_support(opacity, profile=0):
     """Half-width relative to the 3-sigma card, excluding shader-zero tails.
 
     The normalized shader profile subtracts exp(-4), then discards alpha below
@@ -570,6 +612,8 @@ def gaussian_support(opacity):
     alpha = min(1., max(0., float(opacity)))
     if alpha <= 1./255.:
         return 0.
+    if profile:
+        return math.sqrt(math.log(255.*alpha)/4.5) + 1e-6
     cutoff = _GAUSSIAN_FLOOR + (1. - _GAUSSIAN_FLOOR)/(255.*alpha)
     return min(1., math.sqrt(-math.log(cutoff)/4.5) + 1e-6)
 
@@ -583,6 +627,10 @@ def card_indices(spatial, compact=False, progress=None):
     """
     if not compact:
         return range(len(spatial[0]))
+    from .fast_geometry import card_indices as fast_card_indices
+    accelerated = fast_card_indices(spatial, progress)
+    if accelerated is not None:
+        return accelerated
     indices = array('I')
     for i, u in enumerate(spatial[1]):
         if progress and i % 2048 == 0:

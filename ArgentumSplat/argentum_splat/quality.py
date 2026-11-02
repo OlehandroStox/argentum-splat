@@ -5,6 +5,7 @@ from pathlib import Path
 import c4d
 import maxon
 from . import ids as I, assets, materials, scene_setup
+from . import render_profiles
 
 
 def apply_detail_preset(op):
@@ -69,6 +70,11 @@ def prepare_redshift(op, source_marker=None):
         raise RuntimeError("The required Redshift transparency settings are unavailable.")
     doc.StartUndo()
     try:
+        # Work on an explicitly named clone; keep all original effects/settings.
+        rd = render_profiles.target(doc, rd)
+        vp = rd.GetFirstVideoPost()
+        while vp and vp.GetType() != 1036219:
+            vp = vp.GetNext()
         doc.AddUndo(c4d.UNDOTYPE_CHANGE, vp)
         doc.AddUndo(c4d.UNDOTYPE_CHANGE, op)
         for key in depth_ids:
@@ -88,7 +94,7 @@ def prepare_redshift(op, source_marker=None):
                 current = float(.01 if vp[key] is None else vp[key])
                 vp[key] = min(current, .01)
         op[I.STATUS] = (
-            "Redshift detail settings: transparency depth >= 128; "
+            "Argentum Splat - Splatting Transparency active; original preset preserved. Transparency depth >= 128; "
             "manual samples >= 16 / 128; threshold <= 0.01. "
             "Existing stricter settings are preserved. "
             "Rendering can take longer."
@@ -110,7 +116,7 @@ def auto_prepare_redshift(op, source_key):
     doc = op.GetDocument()
     if not doc or doc.GetActiveRenderData()[c4d.RDATA_RENDERENGINE] != 1036219:
         return False
-    # SOG stores captured display colours. A second photographic tone curve
+    # SOG and Photos reconstructions store captured display colours. A second tone curve
     # changes its highlights and contrast. Set a neutral view only on the very
     # first import into an otherwise empty scene, with the default ACES view.
     # Saved projects and later user view changes must never be reset.
@@ -122,8 +128,14 @@ def auto_prepare_redshift(op, source_key):
 
 
 def prepare_source_view(op, source_key):
-    if Path(source_key[0]).suffix.lower() != '.sog' or not scene_setup.automatic_available(op):
+    if not scene_setup.automatic_available(op):
         return False
+    if Path(source_key[0]).suffix.lower() != '.sog':
+        try:
+            if source_camera_data(op, require_match=True).get('origin') != 'photos_colmap':
+                return False
+        except (OSError, ValueError, KeyError, TypeError):
+            return False
     doc = op.GetDocument()
     if doc[c4d.DOCUMENT_COLOR_MANAGEMENT] != c4d.DOCUMENT_COLOR_MANAGEMENT_OCIO:
         return False
@@ -165,9 +177,9 @@ def source_camera_data(op, require_match=False):
     return camera
 
 
-def create_source_camera(op):
+def create_source_camera(op, camera=None, activate=False):
     """Create a new editable camera; keep existing cameras in the document."""
-    camera = source_camera_data(op, require_match=True)
+    camera = camera or source_camera_data(op, require_match=True)
     frame = camera["exported_ply"]
     scale = float(op[I.SCALE])
     flip = bool(op[I.FLIP_Y])
@@ -210,11 +222,16 @@ def create_source_camera(op):
         doc.AddUndo(c4d.UNDOTYPE_NEWOBJ, cam)
         doc.AddUndo(c4d.UNDOTYPE_CHANGE, op)
         op[I.STATUS] = (
+            'Source View created from an aligned photograph (%s × %s). Scale is arbitrary; the camera remains editable.' %
+            (camera.get('width'), camera.get('height')) if camera.get('origin') == 'photos_colmap' else
             "Source View camera created from the model prediction. "
             "Use a square frame to match prepared.png. "
             "Position/framing is an estimate and remains editable."
         )
         doc.SetActiveObject(cam,c4d.SELECTION_NEW)
+        if activate:
+            doc.GetRenderBaseDraw().SetSceneCamera(cam)
+            doc.SetActiveObject(op,c4d.SELECTION_NEW)
     finally:
         doc.EndUndo()
     c4d.EventAdd()

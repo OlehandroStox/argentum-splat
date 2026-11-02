@@ -66,6 +66,10 @@ def settings(op):
         "compact_cards": op.GetUp() is None,
         "sh_direction": orthographic_direction(op),
     }
+    from . import source_profile
+    values['gaussian_profile'] = source_profile.profile(assets.resolve_path(op, op[I.FILE]))
+    if values['gaussian_profile'] and values['pixel_variance'] == .075:
+        values['pixel_variance'] = .3
     if values['camera_facing']:
         values['projection'] = screen_projection(op)
     return values
@@ -91,6 +95,32 @@ def color_configuration_key(doc):
     )
 
 
+_WORKING_MATRICES = {}
+
+
+def working_matrix(doc, converter):
+    """Use a measured matrix only when the actual OCIO transform is linear."""
+    from . import numeric_runtime
+    np = numeric_runtime.numpy()
+    if np is None:
+        return None
+    key = color_configuration_key(doc)
+    if key not in _WORKING_MATRICES:
+        probes = np.array([(0.,0.,0.),(1.,0.,0.),(0.,1.,0.),(0.,0.,1.),
+            (.18,.18,.18),(.03,.7,1.9),(3.,.1,.4),(-.1,.3,.2),
+            (12.,3.,.2),(16.,16.,16.),(.001,.005,.02)])
+        actual = np.array([vector_tuple(v) for v in converter.TransformColors(
+            [c4d.Vector(*v) for v in probes],
+            c4d.COLORSPACETRANSFORMATION_OCIO_LINEAR_TO_RENDERING)])
+        matrix = actual[1:4]
+        valid = (np.allclose(actual[0], 0., atol=1e-8) and
+                 np.allclose(probes @ matrix, actual, rtol=2e-6, atol=2e-7))
+        if len(_WORKING_MATRICES) >= 8:
+            _WORKING_MATRICES.pop(next(iter(_WORKING_MATRICES)))
+        _WORKING_MATRICES[key] = matrix if valid else None
+    return _WORKING_MATRICES[key]
+
+
 def working_colors(doc, colors):
     """Convert corrected linear Rec.709 RGB into the document working gamut."""
     if (doc is None or
@@ -101,6 +131,15 @@ def working_colors(doc, colors):
     color_converter = doc.GetColorConverter()
     if not color_converter.IsOcioConverter():
         raise RuntimeError("Cinema 4D could not initialize the document OCIO converter.")
+    if isinstance(colors, geometry.Vec3Buffer):
+        matrix = working_matrix(doc, color_converter)
+        if matrix is not None:
+            from . import numeric_runtime
+            np = numeric_runtime.numpy()
+            data = np.frombuffer(colors._values, dtype=np.float64).reshape(-1, 3)
+            working = geometry.Vec3Buffer()
+            working._values.frombytes((data @ matrix).astype(np.float64).tobytes())
+            return working
     working = geometry.Vec3Buffer() if isinstance(colors, geometry.Vec3Buffer) else []
     for start in range(0, len(colors), 4096):
         result = color_converter.TransformColors(
@@ -284,9 +323,19 @@ def gaussian_uv_corners(support, cache):
     return corners
 
 
+def render_alpha(prepared, index, source_alpha, opacity):
+    factors = getattr(prepared, 'opacity_factors', None)
+    alpha = min(1., max(0., source_alpha*opacity))
+    return alpha if factors is None else alpha*float(factors[index])
+
+
 def build_mesh_steps(cloud, prepared, material, opacity=1., weights=None, indices=None):
     if indices is None:
         indices = geometry.card_indices(prepared, (weights or {}).get('compact_cards', False))
+    from . import fast_mesh
+    if fast_mesh.available(prepared):
+        return (yield from fast_mesh.build_steps(cloud, prepared, material, opacity,
+                                                weights or materials.DEFAULTS, indices))
     count = len(indices)
     yield ('Allocate Gaussian cards', 0, count)
     from . import import_budget
@@ -316,7 +365,8 @@ def build_mesh_steps(cloud, prepared, material, opacity=1., weights=None, indice
             yield ('Build Gaussian cards', n, count)
             deadline = time.perf_counter() + .004
         center, u, v = c4d.Vector(*centers[source_index]), c4d.Vector(*us[source_index]), c4d.Vector(*vs[source_index])
-        support = geometry.gaussian_support(alpha*opacity)
+        alpha = render_alpha(prepared, source_index, alpha, opacity)
+        support = geometry.gaussian_support(alpha, (weights or {}).get('gaussian_profile', 0))
         u *= support
         v *= support
         j = n*4
@@ -326,10 +376,10 @@ def build_mesh_steps(cloud, prepared, material, opacity=1., weights=None, indice
             mesh.SetPoint(j+k, point)
         mesh.SetPolygon(n, c4d.CPolygon(j,j+1,j+2,j+3))
         uv.SetSlow(n, **gaussian_uv_corners(support, uv_cache))
-        rgba = c4d.Vector4d(*colors[source_index], min(1., alpha*opacity))
+        rgba = c4d.Vector4d(*colors[source_index], alpha)
         for k in range(4):
             c4d.VertexColorTag.SetPoint(color_data, None, None, j+k, rgba)
-        alphas.extend([min(1., max(0., alpha*opacity))]*4)
+        alphas.extend([alpha]*4)
         normal = c4d.Vector(*normals[source_index])
         c4d.NormalTag.Set(normal_data,n,dict(a=normal,b=normal,c=normal,d=normal))
     yield ('Apply opacity', count, count)
@@ -345,6 +395,9 @@ def build_mesh_steps(cloud, prepared, material, opacity=1., weights=None, indice
         mesh.InsertTag(tag)
         tag.SetAllHighlevelData([float(weights[setting])]*(count*4))
         yield ('Apply ' + name, count, count)
+    tag = c4d.VariableTag(c4d.Tvertexmap, count*4)
+    tag.SetName('SplatProfile'); mesh.InsertTag(tag)
+    tag.SetAllHighlevelData([float(weights.get('gaussian_profile', 0))]*(count*4))
     if material:
         texture = c4d.TextureTag()
         texture[c4d.TEXTURETAG_MATERIAL] = material
@@ -376,7 +429,8 @@ def update_mesh_attributes(mesh, cloud, prepared, opacity, weights,
 
 def update_mesh_steps(mesh, cloud, prepared, opacity, weights,
                       update_colors=False, update_opacity=False,
-                      update_weights=False, material=None, update_material=False, indices=None):
+                      update_weights=False, material=None, update_material=False, indices=None,
+                      update_geometry=False):
     """Update an owned clone; opacity also updates its shader-zero support.
 
     Never pass op.GetCache() directly: it belongs to Cinema 4D and may be in use
@@ -384,6 +438,13 @@ def update_mesh_steps(mesh, cloud, prepared, opacity, weights,
     """
     if indices is None:
         indices = geometry.card_indices(prepared, weights.get('compact_cards', False))
+    from . import fast_mesh
+    if fast_mesh.available(prepared):
+        return (yield from fast_mesh.update_steps(mesh, cloud, prepared, opacity, weights, indices,
+            update_geometry=update_geometry, update_colors=update_colors,
+            update_opacity=update_opacity, update_weights=update_weights,
+            material=material, update_material=update_material))
+    update_opacity = update_opacity or update_geometry
     count = len(indices)
     if mesh.GetPointCount() != count * 4 or mesh.GetPolygonCount() != count:
         raise ValueError("Cached Gaussian mesh does not match the source cloud.")
@@ -399,25 +460,30 @@ def update_mesh_steps(mesh, cloud, prepared, opacity, weights,
             if index % 64 == 0 and (index % 256 == 0 or time.perf_counter() >= deadline):
                 yield ('Update colour / opacity', index, count)
                 deadline = time.perf_counter() + .004
-            rgba = c4d.Vector4d(*colors[source_index], min(1., max(0., alpha * opacity)))
+            alpha = render_alpha(prepared, source_index, alpha, opacity)
+            rgba = c4d.Vector4d(*colors[source_index], alpha)
             if update_opacity:
-                support = geometry.gaussian_support(alpha*opacity)
+                support = geometry.gaussian_support(alpha, (weights or {}).get('gaussian_profile', 0))
                 center = c4d.Vector(*prepared[0][source_index])
                 u = c4d.Vector(*prepared[1][source_index])*support
                 v = c4d.Vector(*prepared[2][source_index])*support
                 for k, point in enumerate((center-u-v,center+u-v,center+u+v,center-u+v)):
                     mesh.SetPoint(4*index+k,point)
                 uv.SetSlow(index, **gaussian_uv_corners(support, uv_cache))
+            if update_geometry:
+                normal = c4d.Vector(*prepared[3][source_index])
+                c4d.NormalTag.Set(mesh.GetTag(c4d.Tnormal).GetDataAddressW(),index,
+                                 dict(a=normal,b=normal,c=normal,d=normal))
             for corner in range(4):
                 c4d.VertexColorTag.SetPoint(data, None, None, 4 * index + corner, rgba)
         tag.SetDirty(c4d.DIRTYFLAGS_DATA)
         tag.Message(c4d.MSG_UPDATE)
     if update_opacity:
         values = []
-        for index, alpha in enumerate(core.iter_attributes(cloud, 'opacity', indices)):
+        for index, (source_index, alpha) in enumerate(zip(indices,core.iter_attributes(cloud, 'opacity', indices))):
             if index % 2048 == 0:
                 yield ('Update opacity', index, count)
-            values.extend([min(1., max(0., alpha * opacity))]*4)
+            values.extend([render_alpha(prepared, source_index, alpha, opacity)]*4)
         tag = tags["SplatOpacity"]
         tag.SetAllHighlevelData(values)
         tag.SetDirty(c4d.DIRTYFLAGS_DATA)
@@ -433,6 +499,11 @@ def update_mesh_steps(mesh, cloud, prepared, opacity, weights,
             tag.SetDirty(c4d.DIRTYFLAGS_DATA)
             tag.Message(c4d.MSG_UPDATE)
             yield ('Update ' + tag_name, count, count)
+    if update_geometry or update_opacity:
+        tag = next((t for t in mesh.GetTags() if t.GetName() == 'SplatProfile'), None)
+        if tag is None:
+            tag = c4d.VariableTag(c4d.Tvertexmap, count*4);tag.SetName('SplatProfile');mesh.InsertTag(tag)
+        tag.SetAllHighlevelData([float((weights or {}).get('gaussian_profile',0))]*(count*4))
     if update_material:
         texture = mesh.GetTag(c4d.Ttexture)
         if material is None:
@@ -502,6 +573,7 @@ class SplatObject(InteractiveScan, c4d.plugins.ObjectData):
             CLOUD_CACHE.pop(self.load_key, None)
         self.invalidate()
         self.mesh_template = None
+        self.ready_card_indices = None
         self.ready_request = self.blocked_request = self.queued_request = None
         self.cancelled_non_view = None
         self.source_analysis = self.display_key = None
@@ -611,14 +683,17 @@ class SplatObject(InteractiveScan, c4d.plugins.ObjectData):
         if spatial_key != getattr(self, "spatial_key", None):
             self.spatial = geometry.prepare_geometry(cloud, values, spatial_camera)
             self.spatial_key = spatial_key
-            positions, us, vs = self.spatial[:3]
-            self.bounds = []
-            for axis in range(3):
-                lo = min((p[axis]-abs(u[axis])-abs(v[axis])
-                          for p, u, v in zip(positions, us, vs)), default=0.)
-                hi = max((p[axis]+abs(u[axis])+abs(v[axis])
-                          for p, u, v in zip(positions, us, vs)), default=0.)
-                self.bounds.append(((lo + hi) * .5, max(.01, (hi - lo) * .5)))
+            from . import fast_geometry
+            self.bounds = fast_geometry.spatial_bounds(self.spatial)
+            if self.bounds is None:
+                positions, us, vs = self.spatial[:3]
+                self.bounds = []
+                for axis in range(3):
+                    lo = min((p[axis]-abs(u[axis])-abs(v[axis])
+                              for p, u, v in zip(positions, us, vs)), default=0.)
+                    hi = max((p[axis]+abs(u[axis])+abs(v[axis])
+                              for p, u, v in zip(positions, us, vs)), default=0.)
+                    self.bounds.append(((lo + hi) * .5, max(.01, (hi - lo) * .5)))
         if color_key != getattr(self, "color_key", None):
             colors = geometry.prepare_colors(cloud, values, camera, self.spatial[0])
             self.colors = working_colors(doc, colors)
@@ -772,7 +847,8 @@ class SplatObject(InteractiveScan, c4d.plugins.ObjectData):
             action = data["id"][0].id
             if action in (I.INITIALISE,I.GENERATE,I.CANCEL,I.SETUP,I.OPEN_OUTPUT,I.MOGRAPH,
                           I.DETAIL_PRESET,I.PREPARE_REDSHIFT,I.SOURCE_CAMERA,I.PREVIEW_SOURCE,
-                          I.SUPPORT_AUTHOR,I.HELP_SUPPORT,I.HELP_READER,I.FRAME_SCAN):
+                          I.SUPPORT_AUTHOR,I.HELP_SUPPORT,I.HELP_READER,I.FRAME_SCAN,
+                          I.PHOTOS_GENERATE,I.PHOTOS_SETUP,I.PHOTOS_OPEN,I.PHOTOS_CANCEL,I.GITHUB,I.HELP_GITHUB,I.CAPTURE_VIEW):
                 PENDING.append((self, action))
                 c4d.SpecialEventAdd(I.MESSAGE_ID)
         return True
@@ -783,31 +859,49 @@ class SplatObject(InteractiveScan, c4d.plugins.ObjectData):
             return bool(self.cloud.metadata.get("sh_degree",0))
         if key == I.SPZ_RAW:
             return str(op[I.FILE] or "").lower().endswith(".spz")
-        if key == I.SOURCE_CAMERA:
+        if key in (I.SOURCE_CAMERA,I.CAPTURE_VIEW):
             try:
                 from . import quality
                 quality.source_camera_data(op, require_match=True)
                 return self.job is None
             except Exception:
                 return False
-        if key == I.CANCEL:
+        if key in (I.CANCEL,I.PHOTOS_CANCEL):
             return self.job is not None
         if key in (I.INITIALISE,I.GENERATE,I.SETUP,I.PREVIEW_SOURCE,I.IMAGE,I.INPUT_MODE,
-                   I.SOURCE_FRAME,I.NUM_GAUSSIANS,I.STEPS,I.SEED,I.ALPHA_EROSION,I.FRAME_SCAN):
+                   I.SOURCE_FRAME,I.NUM_GAUSSIANS,I.GAUSSIAN_PRESET,I.STEPS,I.SEED,I.ALPHA_EROSION,I.FRAME_SCAN,
+                   I.PHOTOS_GENERATE,I.PHOTOS_SETUP,I.PHOTOS_FOLDER,I.PHOTOS_STEPS,I.PHOTOS_MAX_SPLATS,I.PHOTOS_RESOLUTION,I.PHOTOS_OUTPUT,I.PHOTOS_COLOR):
             return self.job is None
         return True
 
     def GetDParameter(self, op, descid, flags):
         from . import import_budget
         key = descid[0].id
-        if key == I.IMPORT_QUALITY:
+        if key in I.STATUS_IDS:
+            value = ((getattr(self, 'live_status', None) or self.progress_message) if self.job else None) or op.GetDataInstance().GetString(I.STATUS)
+        elif key == I.PIXEL_VARIANCE:
+            from . import source_profile
+            value = op.GetDataInstance().GetFloat(I.PIXEL_VARIANCE)
+            if value == .075 and source_profile.profile(assets.resolve_path(op, op[I.FILE])):
+                value = .3
+        elif key == I.GAUSSIAN_PRESET:
+            mode = op.GetDataInstance().GetInt32(I.GAUSSIAN_PRESET)
+            count = op.GetDataInstance().GetInt32(I.NUM_GAUSSIANS)
+            value = -1 if mode == -1 or count not in (65536,131072,262144,524288,1048576) else count
+        elif key == I.IMPORT_QUALITY:
             value = import_budget.preset_for(op.GetDataInstance().GetInt32(I.MAX_SPLATS))
         elif key == I.VERSION_INFO:
             from . import __version__
-            value = 'Argentum Splat ' + __version__
+            value = 'Argentum Splat ' + __version__ + '  ·  with love Olehandro Stoxholm'
+        elif key == I.IMAGE_HINT:
+            value = 'One still picture → AI-predicted 3D. Hidden sides are inferred.\nFor a measured scene from overlapping views, use Multi-Photo Scan.'
+        elif key == I.PHOTOS_HINT:
+            value = ('One stationary object or place, photographed from overlapping angles.\n'
+                     'Choose a folder of 3–500 JPG/PNG/WebP/TIFF/BMP images; 10+ views recommended.\n'
+                     'Only photographed surfaces can be reconstructed. Use Captured View to return to a known angle.')
         elif key == I.HELP_TEXT:
             from . import help_content
-            value = help_content.text(op[I.HELP_LANGUAGE], op[I.HELP_TOPIC])
+            value = 'Полная инструкция — в окне справки выше.' if help_content.language(op[I.HELP_LANGUAGE]) else 'Read the selected topic using Open Help Reader above.'
         elif key == I.IMPORT_PLAN:
             try:
                 path = assets.resolve_path(op, op[I.FILE])
@@ -823,6 +917,13 @@ class SplatObject(InteractiveScan, c4d.plugins.ObjectData):
         return True, value, flags | c4d.DESCFLAGS_GET_PARAM_GET
 
     def SetDParameter(self, op, descid, value, flags):
+        if descid[0].id == I.GAUSSIAN_PRESET:
+            if int(value) in (-1,65536,131072,262144,524288,1048576):
+                op.GetDataInstance().SetInt32(I.GAUSSIAN_PRESET,int(value))
+                if int(value) != -1:
+                    op.GetDataInstance().SetInt32(I.NUM_GAUSSIANS,int(value))
+                op.SetDirty(c4d.DIRTYFLAGS_DATA | c4d.DIRTYFLAGS_DESCRIPTION)
+            return True, flags | c4d.DESCFLAGS_SET_PARAM_SET
         if descid[0].id in (I.HELP_LANGUAGE, I.HELP_TOPIC):
             key = descid[0].id
             from . import help_content
@@ -848,7 +949,11 @@ class SplatObject(InteractiveScan, c4d.plugins.ObjectData):
         self.progress_message = str(message)
         self.progress_amount = amount
         self.refresh_status(force=True)
-        c4d.EventAdd()
+        if self.job is None:
+            c4d.EventAdd()
+        # Neither EventAdd nor FORCE_AM_UPDATE is safe here while a job runs:
+        # Redshift restarts IPR on both. The progress dialog has its own timer;
+        # STATUS is read lazily and the completed cache sends one scene event.
 
     def refresh_status(self, force=False):
         """Explain an intentional camera override without changing it or rebuilding."""
@@ -870,8 +975,10 @@ class SplatObject(InteractiveScan, c4d.plugins.ObjectData):
             current = (bd.GetSceneCamera(doc) or bd.GetEditorCamera()) if bd else None
             if current and current != override:
                 message += warning
-        if op[I.STATUS] != message:
-            op[I.STATUS] = message
+        if getattr(self, 'job', None) is not None:
+            self.live_status = message
+        elif op[I.STATUS] != message:
+            op.GetDataInstance().SetString(I.STATUS, message)
 
     def show_progress(self):
         from .progress_ui import show
@@ -931,13 +1038,9 @@ class SplatObject(InteractiveScan, c4d.plugins.ObjectData):
         require_idle()
         image = Path(document_path(self.op,self.op[I.IMAGE]))
         if not image.is_file():
-            raise ValueError("Choose an image or video in INPUT. Use SCAN > Splat File for a 3D scan.")
-        mode = int(self.op[I.INPUT_MODE] or 0)
-        frame = int(self.op[I.SOURCE_FRAME] or 0)
-        kind = input_source.classify_media(image, mode)
-        input_source.validate_frame(frame)
-        if kind == 'sequence':
-            input_source.sequence_frame(image, frame)
+            raise ValueError("Choose one still image in Image. Use Scan > Splat File for a 3D scan.")
+        mode, frame = 0, 0  # Old serialized frame controls are no longer active.
+        input_source.classify_media(image)
         marker = RUNTIME/"runtime.json"
         if not marker.is_file():
             raise RuntimeError("Local AI is not installed. Click Set Up Local AI Backend.")
@@ -969,17 +1072,18 @@ class SplatObject(InteractiveScan, c4d.plugins.ObjectData):
         JOBS.add(self)
         self.log_offset = 0
         self.log_pending = b''
-        self.set_progress('Preparing selected frame' if preview_only else 'Starting local TripoSplat generation', 0.)
+        self.set_progress('Preparing image preview' if preview_only else 'Starting local TripoSplat generation', 0.)
         self.show_progress()
 
     def start_setup(self, kind="setup"):
         require_idle()
         RUNTIME.mkdir(parents=True,exist_ok=True)
         log = (RUNTIME/(kind+".log")).open("wb")
-        script = "setup_formats.ps1" if kind == "formats" else "setup_all.ps1"
+        script = ("setup_formats.ps1" if kind == "formats" else
+                  "setup_photos.ps1" if kind == "photos_setup" else "setup_all.ps1")
         run_id = uuid.uuid4().hex
         args = ["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(ROOT/script)]
-        if kind != 'formats':
+        if kind == 'setup':
             args += ['-RunId', run_id]
         try:
             proc = subprocess.Popen(args,stdout=log,stderr=subprocess.STDOUT,
@@ -990,7 +1094,8 @@ class SplatObject(InteractiveScan, c4d.plugins.ObjectData):
         self.job = dict(process=proc,log=log,dir=RUNTIME,result=None,kind=kind,run_id=run_id)
         JOBS.add(self)
         self.set_progress("Installing extra format support (PlayCanvas)."
-            if kind == "formats" else "Installing isolated AI runtime and model weights (~several GB).")
+            if kind == "formats" else "Installing local Photos reconstruction tools (~250 MB)."
+            if kind == "photos_setup" else "Installing isolated AI runtime and model weights (~several GB).")
         self.show_progress()
 
     def cancel(self, notify=True):
@@ -1049,7 +1154,7 @@ class SplatObject(InteractiveScan, c4d.plugins.ObjectData):
         job = self.job
         code = job["process"].poll()
         if code is None:
-            if job["kind"] == "generate":
+            if job["kind"] in ("generate", "photos"):
                 logfile = job["dir"]/"generation.log"
                 updates, self.log_offset, self.log_pending = job_progress.read_updates(
                     logfile,self.log_offset,getattr(self,'log_pending',b''))
@@ -1082,6 +1187,10 @@ class SplatObject(InteractiveScan, c4d.plugins.ObjectData):
                 "Format setup failed. See "+str(RUNTIME/"formats.log"))
             c4d.EventAdd()
             return
+        if job["kind"] == "photos_setup":
+            self.set_progress("Photos is ready. Choose a Photos Folder and Reconstruct." if code == 0 else
+                              "Photos setup failed. See " + str(RUNTIME/"photos_setup.log"))
+            return
         if job["kind"] == "setup":
             summary = 'Setup needs attention. See ' + str(RUNTIME/'setup.log')
             try:
@@ -1101,18 +1210,27 @@ class SplatObject(InteractiveScan, c4d.plugins.ObjectData):
         if job["result"].is_file():
             result = json.loads(job["result"].read_text(encoding="utf8"))
             if code == 0 and result.get("ok"):
-                current = (str(Path(document_path(self.op,self.op[I.IMAGE])).resolve()),
-                           int(self.op[I.INPUT_MODE] or 0),int(self.op[I.SOURCE_FRAME] or 0))
-                if job.get('input_signature',current) != current:
+                if job['kind'] == 'photos':
+                    from . import photos_jobs
+                    current = photos_jobs.current_signature(self)
+                else:
+                    current = (str(Path(document_path(self.op,self.op[I.IMAGE])).resolve()), 0, 0)
+                if job.get('input_signature',current) != current or result.get('source_changed'):
                     self.set_progress('Input changed. Completed files are saved in ' + str(job['dir']))
                     return
+                if job['kind'] == 'photos':
+                    alignment = result.get('alignment', {})
+                    self.op[I.PHOTOS_REPORT] = ('Aligned %s / %s photos; %s Gaussians.\n%s\n%s' % (
+                        alignment.get('registered'), alignment.get('requested'), result.get('gaussian_count'),
+                        'Some photos were not aligned; see alignment.json.' if alignment.get('unused') else 'All photos aligned.',
+                        str(job['dir'])))
                 if result.get('preview_only'):
                     bitmap = c4d.bitmaps.BaseBitmap()
                     status, _ = bitmap.InitWith(result['input_frame_path'])
                     if status != c4d.IMAGERESULT_OK:
-                        raise RuntimeError('Cannot display selected input frame.')
+                        raise RuntimeError('Cannot display the selected image.')
                     c4d.bitmaps.ShowBitmap(bitmap)
-                    self.set_progress('Selected frame opened in Picture Viewer. Ready to generate.')
+                    self.set_progress('Image opened in Picture Viewer. Ready to generate.')
                     return
                 doc = self.op.GetDocument()
                 doc.StartUndo()
@@ -1120,7 +1238,7 @@ class SplatObject(InteractiveScan, c4d.plugins.ObjectData):
                     doc.AddUndo(c4d.UNDOTYPE_CHANGE,self.op)
                     self.op[I.FILE] = result["ply_path"]
                     self.op[I.FLIP_Y] = bool(result.get("recommended_c4d_flip_y",True))
-                    self.op[I.OUTPUT_DIR] = str(job["dir"].parent)
+                    self.op[I.PHOTOS_OUTPUT if job["kind"] == "photos" else I.OUTPUT_DIR] = str(job["dir"].parent)
                     self.initialise()
                 finally:
                     doc.EndUndo()
@@ -1131,6 +1249,11 @@ class SplatObject(InteractiveScan, c4d.plugins.ObjectData):
 
 class Coordinator(c4d.plugins.MessageData):
     def GetTimer(self):
+        # Native assembly already yields in short slices. Avoid adding 40 ms
+        # of idle time after every slice; leave worker-only/idle polling slow.
+        if any(owner.job and owner.job.get('kind') == 'scan'
+               and owner.job.get('builder') is not None for owner in JOBS):
+            return 16
         return 40
 
     def CoreMessage(self, message, bc):
@@ -1142,10 +1265,10 @@ class Coordinator(c4d.plugins.MessageData):
                 from . import help_reader
                 help_reader.show(instance.op)
                 continue
-            if action in (I.SUPPORT_AUTHOR,I.HELP_SUPPORT):
+            if action in (I.SUPPORT_AUTHOR,I.HELP_SUPPORT,I.GITHUB,I.HELP_GITHUB):
                 # A browser action must not rebuild geometry or overwrite job status.
                 import webbrowser
-                url = 'https://boosty.to/olehandrostox/donate'
+                url = 'https://github.com/OlehandroStox/argentum-splat' if action in (I.GITHUB,I.HELP_GITHUB) else 'https://boosty.to/olehandrostox/donate'
                 try:
                     opened = webbrowser.open_new_tab(url)
                 except Exception:
@@ -1154,7 +1277,7 @@ class Coordinator(c4d.plugins.MessageData):
                     print('Argentum Splat: Support the author at ' + url)
                 continue
             try:
-                if action == I.CANCEL:
+                if action in (I.CANCEL,I.PHOTOS_CANCEL):
                     instance.cancel()
                     continue
                 op = instance.op
@@ -1169,6 +1292,14 @@ class Coordinator(c4d.plugins.MessageData):
                         instance.initialise()
                     finally:
                         doc.EndUndo()
+                elif action == I.CAPTURE_VIEW:
+                    from . import capture_views
+                    capture_views.activate(op)
+                elif action == I.PHOTOS_GENERATE:
+                    from . import photos_jobs
+                    photos_jobs.start(instance)
+                elif action == I.PHOTOS_SETUP:
+                    instance.start_setup('photos_setup')
                 elif action == I.GENERATE:
                     instance.start_generation()
                 elif action == I.PREVIEW_SOURCE:
@@ -1189,9 +1320,10 @@ class Coordinator(c4d.plugins.MessageData):
                         quality.prepare_redshift(op)
                     else:
                         quality.create_source_camera(op)
-                elif action == I.OPEN_OUTPUT:
+                elif action in (I.OPEN_OUTPUT,I.PHOTOS_OPEN):
                     folder = instance.job["dir"] if instance.job else Path(
-                        document_path(op,op[I.OUTPUT_DIR]) or RUNTIME.parent/"generated")
+                        document_path(op,op[I.PHOTOS_OUTPUT if action == I.PHOTOS_OPEN else I.OUTPUT_DIR]) or
+                        RUNTIME.parent/("reconstructed" if action == I.PHOTOS_OPEN else "generated"))
                     if folder.is_dir():
                         os.startfile(str(folder))
             except Exception as error:

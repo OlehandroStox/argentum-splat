@@ -11,7 +11,9 @@ Run these functions on Cinema 4D's main thread. The mesh contract is:
 
 Untrimmed quad half-extents are three Gaussian standard deviations. Geometry
 may trim shader-zero tails while preserving their original UV coordinates.
-The OSL expression uses SuperSplat's normalized Gaussian falloff, reaching zero
+Brush classic support can extend beyond three sigma to its 1/255 cutoff.
+A per-mesh SplatProfile map selects Brush classic or the normalized viewer kernel.
+The viewer profile uses SuperSplat's normalized Gaussian falloff, reaching zero
 at sqrt(8) standard deviations. Contributions below 1/255 are discarded; the
 source opacity is retained at the center. Geometry-side trimming reduces
 unnecessary transparency intersections; the shader discards any remaining
@@ -72,7 +74,7 @@ LEGACY_CAPPED_GAUSSIAN_SOURCE = """shader ArgentumGaussian(
 # profile correction reduces the earlier shader's tails; it does not make
 # Redshift's linear-light card compositing identical to SuperSplat's viewer.
 # A new kernel name avoids reusing Redshift's compiled legacy OSL program.
-GAUSSIAN_SOURCE = """shader ArgentumGaussian082(
+LEGACY_NORMALIZED_GAUSSIAN_SOURCE = """shader ArgentumGaussian082(
     float SplatOpacity = 1.0,
     output color GaussianOpacity = color(1.0)
 )
@@ -86,6 +88,24 @@ GAUSSIAN_SOURCE = """shader ArgentumGaussian082(
     GaussianOpacity = color(alpha < (1.0 / 255.0) ? 0.0 : alpha);
 }
 """
+
+# Per-mesh profile keeps shared materials correct for mixed viewer/Photos scans.
+GAUSSIAN_SOURCE = """shader ArgentumGaussian092(
+    float SplatOpacity = 1.0,
+    float GaussianProfile = 0.0,
+    output color GaussianOpacity = color(1.0)
+)
+{
+    float x = 2.0*u-1.0;
+    float y = 2.0*v-1.0;
+    float g = exp(-4.5*(x*x+y*y));
+    float falloff = GaussianProfile > 0.5 ? g : max(0.0,(g-exp(-4.0))/(1.0-exp(-4.0)));
+    float alpha = clamp(SplatOpacity,0.0,1.0)*falloff;
+    alpha = GaussianProfile > 0.5 ? min(0.999,alpha) : alpha;
+    GaussianOpacity = color(alpha < 1.0/255.0 ? 0.0 : alpha);
+}
+"""
+
 
 LEGACY_EMISSION_SOURCE = """shader ArgentumEmissionColor(
     color SplatColor = color(1.0),
@@ -247,7 +267,7 @@ def _upgrade_gaussian_node(graph, undo_mode=None):
     source = _input(node, OSL + "internal.sourcecode")
     previous = str(source.GetPortValue()).strip()
     if previous not in (LEGACY_GAUSSIAN_SOURCE.strip(),
-                        LEGACY_CAPPED_GAUSSIAN_SOURCE.strip()):
+                        LEGACY_CAPPED_GAUSSIAN_SOURCE.strip(), LEGACY_NORMALIZED_GAUSSIAN_SOURCE.strip()):
         return False
     with _begin_transaction(graph, undo_mode) as transaction:
         source.SetPortValue(GAUSSIAN_SOURCE)
@@ -256,6 +276,23 @@ def _upgrade_gaussian_node(graph, undo_mode=None):
     _input(node, OSL + "splatopacity")
     _output(node, OSL + "gaussianopacity")
     return True
+
+
+def _profile_map(graph, undo_mode=None):
+    gaussian = _node(graph, 'as_gaussian')
+    if str(_input(gaussian, OSL+'internal.sourcecode').GetPortValue()).strip() != GAUSSIAN_SOURCE.strip():
+        return
+    port = gaussian.GetInputs().FindChild(OSL+'gaussianprofile')
+    if port.IsNullValue(): return  # Preserve authored shaders.
+    with _begin_transaction(graph, undo_mode) as transaction:
+        node = _root(graph).FindChild('as_profile')
+        if node.IsNullValue():
+            node = graph.AddChild('as_profile', CORE+'vertexattributelookup', maxon.DataDictionary())
+        prefix = CORE+'vertexattributelookup.'
+        _input(node,prefix+'attribute').SetPortValue('SplatProfile')
+        _input(node,prefix+'defaultscalar').SetPortValue(0.)
+        _output(node,prefix+'outscalar').Connect(port)
+        transaction.Commit()
 
 
 def create_material(doc, name="Argentum Splat", settings=None):
@@ -323,6 +360,7 @@ def create_material(doc, name="Argentum Splat", settings=None):
         if _output(gaussian, OSL + "gaussianopacity").IsNullValue():
             raise MaterialError("Gaussian OSL could not compile: " + compilation)
         _ensure_emission_node(graph)
+        _profile_map(graph)
 
         with graph.BeginTransaction() as transaction:
             surface = _node(graph, "as_surface")
@@ -385,6 +423,7 @@ def update_material(material, settings, *, undo_mode=None):
         raise MaterialError("The material has no Redshift graph.")
     surface = _node(graph, "as_surface")
     _upgrade_gaussian_node(graph, undo_mode)
+    _profile_map(graph, undo_mode)
     _ensure_emission_node(graph, undo_mode)
     with _begin_transaction(graph, undo_mode) as transaction:
         _weight_maps(graph, surface, values)
@@ -415,7 +454,7 @@ def inspect_material(material):
         "reflection_weight": float(_input(surface, prefix + "refl_weight").GetPortValue()),
         "osl_messages": str(_input(gaussian, OSL + "internal.messages").GetPortValue()),
         "gaussian_opacity_profile": (
-            "SuperSplat: normalized Gaussian, sqrt(8) sigma, cutoff 1/255"
+            "Per-mesh viewer / Brush classic; cutoff 1/255"
             if str(_input(gaussian, OSL + "internal.sourcecode").GetPortValue()).strip()
             == GAUSSIAN_SOURCE.strip() else "custom or legacy"
         ),
