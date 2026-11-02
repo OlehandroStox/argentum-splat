@@ -15,9 +15,9 @@ def describe(op, description, flags):
     entries = [(bc.GetClone(c4d.COPYFLAGS_NONE), did, parent) for bc, did, parent in description]
     existing = {did[0].id for _, did, _ in entries if did.GetDepth()}
     locale = help_content.language(op[I.HELP_LANGUAGE])
-    labels = {I.IMAGE: 'Image / Video File',
-              I.GENERATE: 'Generate from Image / Video',
-              I.CANCEL: 'Cancel Processing', 2000: 'INPUT — IMAGE / VIDEO',
+    labels = {I.IMAGE: 'Image File',
+              I.GENERATE: 'Generate from Image',
+              I.CANCEL: 'Cancel Processing', 2000: 'Single Image', I.PHOTOS_GROUP: 'Multi-Photo Scan',
               I.HELP_LANGUAGE: 'Language / Язык',
               I.HELP_TOPIC: 'Тема' if locale else 'Topic',
               I.HELP_TEXT: '', I.VERSION_INFO: '',
@@ -46,23 +46,19 @@ def describe(op, description, flags):
         if key == I.IMPORT_QUALITY:
             container[c4d.DESC_DEFAULT] = 3
             changed = True
-        if key in (I.HELP_GROUP, I.HELP_BODY_GROUP, I.HELP_TEXT):
-            # The parent AND text must scale; text-only SCALE_V stays four lines.
-            container[c4d.DESC_GROUPSCALEV] = True
-            container[c4d.DESC_SCALEH] = True
-            changed = True
         if key in (I.HELP_BODY_GROUP, I.HELP_SETTINGS_GROUP, I.HELP_FOOTER_GROUP):
             container[c4d.DESC_NAME] = ''
             container[c4d.DESC_SHORT_NAME] = ''
             container[c4d.DESC_TITLEBAR] = False
             changed = True
         if key == I.HELP_TEXT:
-            container[c4d.DESC_FITH] = True
+            # Keep the AM compact. Full, scrollable text lives in Help Reader.
+            container[c4d.DESC_SCALEH] = True
+            container[c4d.DESC_FITH] = False
             changed = True
-        if key in (I.HELP_TOPIC, I.HELP_LANGUAGE, I.INPUT_MODE):
+        if key in (I.HELP_TOPIC, I.HELP_LANGUAGE):
             options = (help_content.TOPICS[locale] if key == I.HELP_TOPIC else
-                       ('English', 'Русский') if key == I.HELP_LANGUAGE else
-                       ('Auto (Image / Video)', 'Numbered Image Sequence'))
+                       ('English', 'Русский'))
             cycle = c4d.BaseContainer()
             for index, label in enumerate(options):
                 cycle.SetString(index, label)
@@ -73,7 +69,7 @@ def describe(op, description, flags):
             changed = True
         if key == I.COLOR_MODE:
             cycle = c4d.BaseContainer()
-            cycle.SetString(0, 'sRGB Source to Scene Linear')
+            cycle.SetString(0, 'Auto: Source Colour to Scene Linear')
             cycle.SetString(1, 'Treat Source as Linear')
             container[c4d.DESC_CYCLE] = cycle
             changed = True
@@ -93,9 +89,7 @@ def describe(op, description, flags):
         (I.DETAIL_PRESET, c4d.DTYPE_BUTTON, I.SCAN_TOOLS_GROUP, 'Source Fidelity - Preserve Detail', 0),
         (I.PREPARE_REDSHIFT, c4d.DTYPE_BUTTON, I.SCAN_TOOLS_GROUP, 'Set Redshift Detail Quality', 0),
         (I.SOURCE_CAMERA, c4d.DTYPE_BUTTON, I.SCAN_TOOLS_GROUP, 'Create Estimated Source Camera', 0),
-        (I.INPUT_MODE, c4d.DTYPE_LONG, 2000, 'Input Mode', 1),
-        (I.SOURCE_FRAME, c4d.DTYPE_LONG, 2000, 'Source Frame / Sequence Offset (0 = First)', 99999),
-        (I.PREVIEW_SOURCE, c4d.DTYPE_BUTTON, 2000, 'Preview Selected Frame', 0),
+        (I.PREVIEW_SOURCE, c4d.DTYPE_BUTTON, 2000, 'Preview Image', 0),
         (I.SUPPORT_AUTHOR, c4d.DTYPE_BUTTON, 2006, 'Support the author - Boosty', 0),
     )
     for key, datatype, group, label, maximum in controls:
@@ -117,11 +111,6 @@ def describe(op, description, flags):
             container[c4d.DESC_EDITABLE] = False
         else:
             container[c4d.DESC_CUSTOMGUI] = c4d.CUSTOMGUI_BUTTON
-        if key == I.INPUT_MODE:
-            cycle = c4d.BaseContainer()
-            cycle.SetString(0, 'Auto (Image / Video)')
-            cycle.SetString(1, 'Numbered Image Sequence')
-            container[c4d.DESC_CYCLE] = cycle
         if key == I.IMPORT_QUALITY:
             from . import import_budget
             cycle = c4d.BaseContainer()

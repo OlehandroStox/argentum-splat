@@ -24,6 +24,9 @@ def function(file, name, context, cls=None):
 
 
 class Op(dict):
+    def GetDataInstance(self):
+        return SimpleNamespace(SetString=lambda key, value: self.__setitem__(key, value))
+
     def GetDocument(self):
         return self.doc
 
@@ -124,7 +127,9 @@ class NativeDecisionTests(unittest.TestCase):
         op = Op()
         op.doc = SimpleNamespace(GetActiveRenderData=lambda:rd,StartUndo=Mock(),
             EndUndo=Mock(),AddUndo=Mock())
-        function('quality.py','prepare_redshift',dict(c4d=host,I=I))(op,source_marker='source identity')
+        profiles = SimpleNamespace(target=Mock(return_value=rd))
+        function('quality.py','prepare_redshift',dict(c4d=host,I=I,render_profiles=profiles))(op,source_marker='source identity')
+        profiles.target.assert_called_once_with(op.doc, rd)
         self.assertFalse(vp[host.REDSHIFT_RENDERER_ENABLE_AUTOMATIC_SAMPLING])
         self.assertEqual(vp[host.REDSHIFT_RENDERER_MAX_TRACE_DEPTH_TRANSPARENCY],200)
         self.assertEqual(vp[host.REDSHIFT_RENDERER_BASIC_MAX_TRACE_DEPTH_TRANSPARENCY],128)
@@ -171,6 +176,7 @@ class NativeDecisionTests(unittest.TestCase):
         op=Op();op.doc=doc
         available=Mock(return_value=True)
         action=function('quality.py','prepare_source_view',dict(c4d=host,Path=Path,
+            source_camera_data=Mock(side_effect=ValueError('No capture metadata')),
             scene_setup=SimpleNamespace(automatic_available=available)))
         self.assertTrue(action(op,('scene.sog',)))
         self.assertEqual(doc[3],1)

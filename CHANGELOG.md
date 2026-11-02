@@ -1,5 +1,54 @@
 # Changelog
 
+## 0.9.2 — 2026-10-30
+
+- Match Photos' Brush rasterization contract: classic exponential Gaussian kernel, full opacity-dependent support, 0.3 pixel variance at default settings and no MIP area compensation. Other scans retain the normalized viewer profile.
+- Store the profile per mesh so scans using different kernels can share a Redshift material. Migrate only recognized built-in shaders; preserve custom OSL.
+- Add Training Colour: Redshift Linear by default, or sRGB for conventional splat viewers. Calibration uses display images; linear training uses lossless 16-bit RGB PNG copies. Embed colour space and renderer profile in the exported PLY.
+- Preserve source photo details through lossless preprocessing and honour embedded ICC profiles. Original files remain unchanged.
+- Existing sRGB PLYs benefit from the kernel correction but need reconstruction in Linear mode to remove the colour-compositing mismatch.
+
+## 0.9.1 — 2026-10-30
+
+- Clarify Single Image (one AI-inferred view) versus Multi-Photo Scan (3–500 overlapping views); keep existing saved values.
+- Compact Help tab: reader button at the top; remove the collapsing inline manual. Help Reader includes live status, author credit, GitHub and Boosty.
+- Show the same lazy status in every plugin tab without issuing scene events that restart IPR.
+- Clone render settings into `Argentum Splat - Splatting Transparency`; preserve the original preset and effects, support Undo, and reuse the owned copy.
+- New multi-photo scans default to 30,000 training steps. Stop growth halfway through short runs (at most 15,000), leaving time for refinement.
+- Save all calibrated capture views beside a multi-photo result; Captured View creates and activates the selected camera. Older results retain their single saved camera.
+- A photo scan only reconstructs observed surfaces. Existing PLYs are not retrained by updating the plugin; arbitrary viewpoints and Redshift card compositing still have limits.
+
+## 0.9.0 — 2026-10-29
+
+- Separate Image, Photos and Scan tabs; version footer includes `with love Olehandro Stoxholm`.
+- Photos reconstructs one scan from overlapping photographs using local PyCOLMAP and Brush, with a separate runtime, alignment diagnostics, cancellation and automatic import.
+- Photos results retain a calibrated starting view and its aspect ratio for automatic framing. In an otherwise empty scene, the default ACES view switches once to Un-tone-mapped for captured colours; existing scenes and custom views are preserved.
+- Removed moving-image/sequence decoding, related controls and PyAV dependency. Image uses one still picture.
+- Preserved 0.8.3 scan caching and opacity compensation. Camera motion still requires view-dependent updates when applicable.
+
+
+## 0.8.3 — Faster scan updates, subpixel filtering and custom AI counts
+
+- Keep running-job progress out of serialized scene data and avoid scene/Attribute Manager events for progress ticks. Redshift no longer restarts IPR for every progress notification; completed geometry is published atomically. Camera-dependent projection still needs an update after camera motion, using the retained source.
+- Reduce waiting between native assembly slices, with a short shared time budget across active jobs. Clarify camera-only status messages when visibility requires new card topology.
+- Add 524,288 and 1,048,576 Image Gaussian Count presets plus Custom (32,768–1,048,576, multiples of 32). Values above 262,144 are experimental; preserve the numeric count in existing scenes.
+
+- Accelerate validated packed PLY projection, SH colour, bounds and visible-card selection with optional NumPy. Keep bounded worker batches, cancellation checks and the ordinary Python fallback.
+- Reuse decoded source components in a bounded cache and retain completed preparation stages when a later stage is cancelled or retargeted. Track source-space versus document-working colours so reused data receives the correct colour conversion once.
+- Refresh an owned mesh clone when the visible source mapping is unchanged. Write points, polygons, colours, opacity and weights in bounded native batches. UVW coordinates use Cinema 4D's supported `SetSlow` API; raw UV buffer layout is not assumed.
+- Compensate opacity for the area added by Pixel Footprint filtering. Fine bright splats no longer keep their original peak opacity after being enlarged by the filter. Source RGB, SH coefficients and stored opacity remain unchanged; the correction applies only to supported camera-facing projection with a nonzero filter.
+- Bundle the unchanged, checksum-pinned NumPy 2.2.6 wheel for Windows x64 / CPython 3.11. Extract it to the plugin's private local cache without pip, downloads or changes to Cinema 4D's Python installation. Reuse an available NumPy and fall back to ordinary Python when acceleration is unavailable.
+- Restrict release packaging to that exact wheel and preserve its complete upstream license notices.
+- Evaluate all four candidate directions for enclosed scans, even when the first direction is unsuitable. Measure coverage with the filter-compensated opacity and the actual visibility cutoff.
+- Preserve manual film offsets and parallel zoom on an automatically created import camera when the source changes.
+- Report authored 2D Gaussian PLY models as unsupported 2DGS rather than a misleading missing `scale_2` error; preserve normal 3DGS validation.
+- Keep small camera movements significant in cache keys when the scene is far from the world origin, while filtering insignificant matrix noise.
+- Include object and parent scale/shear when choosing the near clipping distance of an inferred interior view; avoid subtracting large translated positions to compute its direction.
+
+### Compatibility
+
+Pixel Footprint now changes peak opacity as well as projected size. Existing scenes using a nonzero filter can therefore render fine bright detail differently after updating. Set Pixel Footprint to 0 to disable both filtering and its compensation. Normal Redshift materials, lighting and linear-light compositing remain in use; this is not a replacement Gaussian compositor or a global gamma adjustment. See [rendering compatibility](docs/rendering-compatibility.md).
+
 ## 0.8.2 — Import scheduling, viewport responsiveness and source validation
 
 - Build native points incrementally instead of retaining millions of temporary Vector objects and committing them in one call. Card batches target 4 ms, up to 256 cards; native allocation and cloning remain indivisible.

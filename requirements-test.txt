@@ -1,4 +1,3 @@
 # Portable test dependencies; plugin runtime setup is separate.
 numpy==2.2.6
 Pillow==11.3.0
-av==16.0.1

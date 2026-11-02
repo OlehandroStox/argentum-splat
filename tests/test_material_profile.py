@@ -19,16 +19,16 @@ from argentum_splat.geometry import gaussian_support
 def shader_constants():
     tree = ast.parse((ROOT/'argentum_splat/materials.py').read_text(encoding='utf8'))
     names = ('LEGACY_GAUSSIAN_SOURCE', 'LEGACY_CAPPED_GAUSSIAN_SOURCE',
-             'GAUSSIAN_SOURCE')
+             'LEGACY_NORMALIZED_GAUSSIAN_SOURCE', 'GAUSSIAN_SOURCE')
     return {node.targets[0].id: ast.literal_eval(node.value)
             for node in tree.body if isinstance(node, ast.Assign)
             and isinstance(node.targets[0], ast.Name) and node.targets[0].id in names}
 
 
-def evaluate_shader(source, opacity, x, y):
+def evaluate_shader(source, opacity, x, y, profile=0):
     """Evaluate this shader's scalar OSL assignments, not a duplicate formula."""
     context = dict(u=(x+1)/2, v=(y+1)/2, SplatOpacity=opacity,
-                   exp=math.exp, min=min, max=max, color=float,
+                   GaussianProfile=profile, exp=math.exp, min=min, max=max, color=float,
                    clamp=lambda value, low, high: min(high, max(low, value)))
     body = source.split('{', 1)[1].rsplit('}', 1)[0]
     for statement in body.split(';'):
@@ -42,6 +42,10 @@ def evaluate_shader(source, opacity, x, y):
         ternary = re.fullmatch(r'color\((.*?)\?(.*?)\:(.*?)\)', expression, re.S)
         if ternary:
             condition, yes, no = ternary.groups()
+            expression = '('+yes+') if ('+condition+') else ('+no+')'
+        elif '?' in expression:
+            condition, branches = expression.split('?', 1)
+            yes, no = branches.split(':', 1)
             expression = '('+yes+') if ('+condition+') else ('+no+')'
         context[name] = eval(expression, {'__builtins__': {}}, context)
     return context['GaussianOpacity']
@@ -81,6 +85,11 @@ class SuperSplatMaterialProfileTests(unittest.TestCase):
         self.assertEqual(evaluate_shader(self.source, .01, 2/3, 0.), 0.)
         self.assertGreater(evaluate_shader(self.source, .01, 1/3, 0.), 1/255)
 
+    def test_photos_profile_uses_classic_gaussian(self):
+        for sigma in (0., 1., 2., 2.5):
+            self.assertAlmostEqual(evaluate_shader(self.source, 1., sigma/3., 0., 1),
+                                   min(.999, math.exp(-.5*sigma*sigma)), places=13)
+
     def test_geometry_support_never_crops_a_visible_reference_sample(self):
         for opacity in (.004, .01, .03, .1, .5, 1.):
             support = gaussian_support(opacity)
@@ -90,7 +99,7 @@ class SuperSplatMaterialProfileTests(unittest.TestCase):
 
     def test_kernel_name_is_distinct_from_both_legacy_programs(self):
         kernel = re.match(r'shader (\w+)\(', self.source)[1]
-        for name in ('LEGACY_GAUSSIAN_SOURCE', 'LEGACY_CAPPED_GAUSSIAN_SOURCE'):
+        for name in ('LEGACY_GAUSSIAN_SOURCE', 'LEGACY_CAPPED_GAUSSIAN_SOURCE', 'LEGACY_NORMALIZED_GAUSSIAN_SOURCE'):
             self.assertNotEqual(kernel, re.match(r'shader (\w+)\(', self.constants[name])[1])
 
     def migration(self, initial):
@@ -108,7 +117,7 @@ class SuperSplatMaterialProfileTests(unittest.TestCase):
         return upgrade, state, port, transaction, begin, read_input, read_output
 
     def test_both_known_legacy_shaders_migrate_once_with_caller_undo(self):
-        for name in ('LEGACY_GAUSSIAN_SOURCE', 'LEGACY_CAPPED_GAUSSIAN_SOURCE'):
+        for name in ('LEGACY_GAUSSIAN_SOURCE', 'LEGACY_CAPPED_GAUSSIAN_SOURCE', 'LEGACY_NORMALIZED_GAUSSIAN_SOURCE'):
             with self.subTest(profile=name):
                 upgrade, state, port, transaction, begin, inputs, outputs = self.migration(
                     '\n'+self.constants[name]+'\n')

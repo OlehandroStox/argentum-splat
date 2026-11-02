@@ -64,6 +64,7 @@ class ViewportBatchTests(unittest.TestCase):
             geometry=SimpleNamespace(card_indices=compile_indices, gaussian_support=geometry.gaussian_support),
             time=SimpleNamespace(perf_counter=elapsed),__package__='argentum_splat')
         context['gaussian_uv_corners'] = function('plugin.py','gaussian_uv_corners', context)
+        context['render_alpha'] = function('plugin.py','render_alpha', context)
         build = function('plugin.py','build_mesh_steps',context)
         count = 700
         splats = [core.Splat((i,0,0),(.5,.4,.3),.8,(1,1,1),(1,0,0,0)) for i in range(count)]

@@ -1,18 +1,32 @@
 """Bundled offline instructions. Language affects help only, never scene data."""
 
-TOPICS = {
-    0: ('Quick start', 'Image / Video', 'Scan import and quality', 'Scan projection',
-        'Automatic setup and manual tools', 'LOOK', 'Colour correction',
-        'Viewport and performance', 'Advanced / MoGraph', 'Troubleshooting'),
-    1: ('Быстрый старт', 'Фото / видео', 'Импорт скана и качество', 'Проекция скана',
-        'Автонастройка и ручные инструменты', 'LOOK — внешний вид', 'Цветокоррекция',
-        'Вьюпорт и скорость', 'Advanced / MoGraph', 'Решение проблем'),
-}
+TOPICS = {0: ('Quick start',
+     'Image',
+     'Scan import and quality',
+     'Scan projection',
+     'Automatic setup and manual tools',
+     'LOOK',
+     'Colour correction',
+     'Viewport and performance',
+     'Advanced / MoGraph',
+     'Troubleshooting',
+     'Photos'),
+ 1: ('Быстрый старт',
+     'Image',
+     'Импорт скана и качество',
+     'Проекция скана',
+     'Автонастройка и ручные инструменты',
+     'LOOK — внешний вид',
+     'Цветокоррекция',
+     'Вьюпорт и скорость',
+     'Advanced / MoGraph',
+     'Решение проблем',
+     'Photos')}
 
 EN = (
-"""TWO WAYS TO START
+"""THREE WAYS TO START
 
-Photo or video: INPUT > Image / Video File, then Generate from Image / Video. The local AI creates a static 3D model from ONE image or selected frame. Use Set Up AI / Extra Formats if the runtime is missing.
+Single Image: choose Image File, then Generate from Image. Local AI predicts one model from one still picture. Multi-Photo Scan reconstructs a shared scan from overlapping views in a folder; choose Set Up Photos once, then Reconstruct from Photos.
 
 Existing 3D scan: SCAN > Splat File. Choose PLY, SPLAT, SPZ, SOG or KSPLAT and an Import Quality. Loading starts after changes settle; Initialise / Reload starts it immediately or retries.
 
@@ -23,28 +37,27 @@ Gaussian Count = how many Gaussians the AI generates.
 Import Quality = how many existing scan splats are retained.
 Preview Points = how many points the editor draws; default 50,000.
 
-Help is available offline. Language / Язык changes only these instructions. Existing scene values are preserved when the plugin is updated.""",
+Help is available offline. Language / Язык changes only these instructions. Existing scene values are preserved when the plugin is updated.
 
-"""INPUT — IMAGE / VIDEO
+Redshift preparation creates and activates a copy named Argentum Splat - Splatting Transparency, preserving your original preset. Status is available in each plugin tab and the Help Reader. GitHub opens the repository and its Releases page is where updates are published.""",
 
-Image / Video File: PNG, JPG/JPEG, WebP, TIFF, BMP, TGA or GIF; videos include MP4, MOV, MKV, AVI and WebM (decoding depends on the installed backend). Put 3D files in SCAN > Splat File.
+"""IMAGE — ONE PICTURE
 
-Input Mode: Auto detects image/video. Numbered Image Sequence reads a numbered image such as shot_0001.png.
-Source Frame / Sequence Offset: 0 is the first video frame, or the selected sequence file; 1 selects the next. A missing numbered frame is reported, not skipped.
-Preview Selected Frame: inspect the extracted/prepared image before generation.
+Image File: PNG, JPG/JPEG, WebP, TIFF, BMP, TGA or a non-animated GIF. Put 3D files in Scan > Splat File.
 
-Gaussian Count: 65,536 / 131,072 / 262,144 are supported AI output sizes. Higher counts cost more time and memory; they cannot recover all unseen detail.
+Preview Image: inspect the extracted/prepared image before generation.
+
+Gaussian Count: presets up to 1,048,576; Custom accepts 32,768–1,048,576 in multiples of 32 (for example 1,000,000). Counts above 262,144 are experimental, outside the upstream recommended range. They cost more memory and do not guarantee better reconstruction.
 Generation Steps: more sampling iterations, usually more time; not a guaranteed quality increase.
 Seed: changes the generated variation; keep it fixed for comparisons.
 Alpha Erosion: shrink the foreground mask. 0 keeps fine edges; increase only to remove background fringes.
 
 Output Folder: destination for generated files; blank uses the local default.
-Generate from Image / Video: start local AI generation from one selected frame.
+Generate from Image: start local AI generation from one still picture.
 Cancel Processing: stop the current operation; keep the previous complete model.
 Set Up AI / Extra Formats: install the isolated runtime and optional converters; downloads can be several GB.
 Open Output Folder: open generated files in Explorer.
-
-Video/sequence input does NOT combine views or create animated 3D. Four views in a collage are not a multi-view reconstruction input.""",
+""",
 
 """SCAN — EXISTING 3D DATA
 
@@ -81,7 +94,7 @@ These settings do not change how many source records are retained. Import Qualit
 
 """AUTOMATIC SETUP / MANUAL TOOLS
 
-Auto Prepare Redshift on Import: prepare transparency and sampling once for each new source. The first SOG import into an empty scene changes the default ACES view to Un-tone-mapped, preserving captured colours. Existing scenes, custom views, exposure and working colour space stay unchanged. Later LOOK/camera/reload changes preserve manual choices. Disable for full manual setup.
+Auto Prepare Redshift on Import: prepare transparency and sampling once for each new source. The first SOG or Photos import into an empty scene changes the default ACES view to Un-tone-mapped, preserving captured colours. Existing scenes, custom views, exposure and working colour space stay unchanged. Later LOOK/camera/reload changes preserve manual choices. Disable for full manual setup.
 
 Auto Frame in Empty Scene: fit a camera only when this is the sole scene object and no existing user camera blocks it. Existing scene content and manually edited cameras are preserved. For SOG, detailed coverage around the source origin can select an interior view. Long background tails are excluded from framing only. Otherwise a subject overview is used. This estimates a starting view; camera metadata is not present in every source.
 
@@ -137,7 +150,7 @@ For speed: lower Preview Points first for editor drawing; use LOW/MEDIUM for lig
 """ADVANCED / MOGRAPH
 
 Global Scale: whole-model size; default 100. It does not add detail.
-Pixel Footprint (variance; 0 = Off): image-space filtering for perspective camera-facing cards, default 0.075. Higher values broaden/soften tiny splats; 0 disables filtering.
+Pixel Footprint (variance; 0 = Off): image-space filtering for supported perspective/parallel camera-facing cards, default 0.075. It broadens tiny splats and compensates their peak opacity for the added area, reducing excess brightness without changing source RGB/SH. Higher values can soften detail; 0 disables filtering and compensation. Existing filtered scenes can look different after updating to 0.8.3.
 Splat Scale: change individual card sizes without moving centres. Default 1; too large blurs, too small opens holes.
 Maximum Splats: the SAME limit as Import Quality. 0 = Full Source; other custom values show CUSTOM. Not a second independent cap.
 Minimum Opacity (Reload): discard nearly transparent source records. Default 1/255; lowering retains faint detail at a memory/render cost.
@@ -167,15 +180,29 @@ Interior scan framed from outside: automatic bounds fitting cannot infer a good 
 
 Long load / low memory: use a lower Import Quality. Estimates are approximate RAM, not VRAM guarantees. Cancel preserves the previous complete model. LOW still reads/validates the file.
 
-AI runtime missing: run Set Up AI / Extra Formats and inspect Status. Video uses one selected frame; it is not multi-view capture.
+Missing runtime: Image uses Set Up AI / Extra Formats; Photos uses its separate Set Up Photos button.
 
 Differences from other viewers can remain because card compositing, transparency, camera and colour management differ. More splats do not guarantee identical rendering.""",
+
+"""MULTI-PHOTO SCAN — ONE SCAN FROM MULTIPLE VIEWS
+
+Choose Photos Folder with pictures of one stationary subject. JPG, PNG, WebP, TIFF and BMP are accepted directly inside the folder; subfolders are ignored. Minimum 3, maximum 500. Start with 10–50 sharp overlapping views. Move the camera around the subject; keep subject and lighting still. Unrelated images, duplicates, blur, reflections, transparency and missing overlap can prevent alignment.
+
+Set Up Photos downloads its separate private Python, PyCOLMAP and Brush (about 250 MB). Image AI weights are not required. CPU alignment, lens correction and GPU Gaussian training run locally. Photos are never uploaded. Brush needs a compatible GPU and current driver; memory depends on resolution and point count.
+
+Training Colour defaults to Redshift - Linear. Camera alignment uses normal display images; training uses lossless 16-bit scene-linear copies for correct Redshift compositing. Choose Splat Viewers - sRGB for conventional external viewers. Existing sRGB reconstructions need retraining to change the colour model. The exported PLY records its colour space and Gaussian profile.
+
+Training Steps defaults to 30,000. Maximum Gaussians defaults to 1,000,000: this is an upper limit, not a guaranteed result count. Photo Resolution is the longest side of processing copies; original photos are unchanged. Start with defaults and Reconstruct from Photos. Training progress shows elapsed time and target steps, not an invented percentage.
+
+Cancel Processing stops the owned processes and keeps the previous scan. Each run has a new output folder. A completed PLY is imported if input selection is unchanged. alignment.json lists used and unused photographs: at least 60% and at least 3 must align. Partial alignment can leave holes. generation.json contains an estimated calibrated source view; scale is arbitrary. Copy it alongside the PLY when moving projects. Keep the original Photos Folder separately to reconstruct again.
+
+Use Captured View (0 = first), then Use Captured Camera, to create and activate a saved calibrated view. Keep capture-cameras.json and generation.json beside the PLY. Existing older results may have only one camera. Photograph all sides you need: more training cannot recover an unseen roof or the back of a subject. New defaults apply only to newly created objects; existing PLYs need reconstruction to benefit from extra training. Growth stops before training ends to leave a refinement phase."""
 )
 
 RU = (
-"""ДВА СПОСОБА НАЧАТЬ
+"""ТРИ СПОСОБА НАЧАТЬ
 
-Фото или видео: INPUT > Image / Video File, затем Generate from Image / Video. Локальная нейросеть создаст статичную 3D-модель по ОДНОМУ изображению или выбранному кадру. Если компоненты не установлены, нажмите Set Up AI / Extra Formats.
+Single Image: выберите Image File, затем Generate from Image. Локальная AI-модель предсказывает 3D по одному фото. Photos создаёт общий скан по ракурсам из папки: один раз Set Up Photos, затем Reconstruct from Photos.
 
 Готовый 3D-скан: SCAN > Splat File. Выберите PLY, SPLAT, SPZ, SOG или KSPLAT и Import Quality. Загрузка начнётся после остановки изменений; Initialise / Reload запускает её сразу или повторяет попытку.
 
@@ -186,28 +213,27 @@ Gaussian Count — сколько гауссиан создаёт нейросе
 Import Quality — сколько существующих сплатов скана загружается.
 Preview Points — сколько точек рисует редактор; по умолчанию 50 000.
 
-Help работает без интернета. Language / Язык меняет только инструкцию. Обновление плагина сохраняет настройки ранее созданных объектов.""",
+Help работает без интернета. Language / Язык меняет только инструкцию. Обновление плагина сохраняет настройки ранее созданных объектов.
 
-"""INPUT — ФОТО / ВИДЕО
+Настройка Redshift создаёт и активирует копию Argentum Splat - Splatting Transparency; исходный профиль сохраняется. Status доступен во всех вкладках плагина и окне справки. GitHub открывает репозиторий; обновления находятся в его разделе Releases.""",
 
-Image / Video File: PNG, JPG/JPEG, WebP, TIFF, BMP, TGA, GIF; видео MP4, MOV, MKV, AVI, WebM и другие поддерживаемые декодером форматы. Готовые 3D-файлы выбирайте в SCAN > Splat File.
+"""IMAGE — ОДНО ФОТО
 
-Input Mode: Auto распознаёт фото/видео. Numbered Image Sequence — нумерованная секвенция, например shot_0001.png.
-Source Frame / Sequence Offset: 0 — первый кадр видео или выбранный файл секвенции; 1 — следующий. Пропущенный номер считается ошибкой, а не заменяется соседним.
-Preview Selected Frame: посмотреть извлечённый/подготовленный кадр до генерации.
+Image File: PNG, JPG/JPEG, WebP, TIFF, BMP, TGA или неанимированный GIF. Готовые 3D-файлы выбирайте в Scan > Splat File.
 
-Gaussian Count: 65 536 / 131 072 / 262 144 — поддерживаемые размеры результата AI. Больше требует времени и памяти, но не восстанавливает все невидимые детали.
+Preview Image: посмотреть подготовленное изображение до генерации.
+
+Gaussian Count: пресеты до 1 048 576; Custom позволяет ввести 32 768–1 048 576 кратно 32 (например, 1 000 000). Значения выше 262 144 экспериментальные, за пределами рекомендованного диапазона исходной модели. Они требуют больше памяти и не гарантируют лучшую реконструкцию.
 Generation Steps: число шагов генерации. Больше обычно дольше, но не обязательно лучше.
 Seed: вариант результата; для сравнения сохраняйте одинаковый seed.
 Alpha Erosion: сужение маски объекта. 0 сохраняет тонкие края; увеличивайте только для удаления каймы фона.
 
 Output Folder: папка результата; пустое поле использует локальную папку по умолчанию.
-Generate from Image / Video: генерация по одному выбранному кадру.
+Generate from Image: генерация по одному изображению.
 Cancel Processing: отмена операции с сохранением предыдущей готовой модели.
 Set Up AI / Extra Formats: установка отдельного окружения и конвертеров; загрузка может занимать несколько ГБ.
 Open Output Folder: открыть результаты в Проводнике.
-
-Видео/секвенция НЕ объединяются в многоракурсный скан или анимированную 3D-модель. Коллаж из четырёх видов тоже не является таким входом.""",
+""",
 
 """SCAN — ГОТОВЫЕ 3D-ДАННЫЕ
 
@@ -244,7 +270,7 @@ Normal Smoothing Passes: сглаживание соседних нормале�
 
 """АВТОНАСТРОЙКА / РУЧНЫЕ ИНСТРУМЕНТЫ
 
-Auto Prepare Redshift on Import: один раз для нового источника настраивает прозрачность и сэмплинг. При первом SOG-импорте в пустую сцену стандартный ACES view заменяется на Un-tone-mapped для сохранения захваченных цветов. Готовые сцены, нестандартные view, экспозиция и рабочее цветовое пространство сохраняются. Последующие LOOK/камера/Reload не сбрасывают ручные настройки. Для полностью ручной настройки отключите опцию.
+Auto Prepare Redshift on Import: один раз для нового источника настраивает прозрачность и сэмплинг. При первом импорте SOG или результата Photos в пустую сцену стандартный ACES view заменяется на Un-tone-mapped для сохранения захваченных цветов. Готовые сцены, нестандартные view, экспозиция и рабочее цветовое пространство сохраняются. Последующие LOOK/камера/Reload не сбрасывают ручные настройки. Для полностью ручной настройки отключите опцию.
 
 Auto Frame in Empty Scene: подбирает камеру, если splat — единственный объект сцены и нет пользовательской камеры. Существующая сцена и вручную изменённые камеры сохраняются. Для SOG детальное заполнение кадра из начала координат позволяет выбрать внутренний вид. Дальний фон исключается только из расчёта кадрирования. В остальных случаях используется общий вид предмета. Это оценка начального ракурса: исходная камера не сохраняется в каждом файле.
 
@@ -300,7 +326,7 @@ Camera-Facing обновляет проекцию при изменении ка
 """ADVANCED / MOGRAPH
 
 Global Scale: размер всей модели; обычно 100. Детализацию не повышает.
-Pixel Footprint (variance; 0 = Off): экранный фильтр для перспективной Camera-Facing проекции; обычно 0.075. Больше расширяет/смягчает мелкие сплаты, 0 отключает фильтр.
+Pixel Footprint (variance; 0 = Off): экранный фильтр для поддерживаемой перспективной/параллельной Camera-Facing проекции; обычно 0.075. Расширяет мелкие сплаты и компенсирует непрозрачность в центре с учётом добавленной площади, уменьшая избыточную яркость без изменения RGB/SH исходника. Больше может смягчать детали; 0 отключает фильтр и компенсацию. Старые сцены с включённым фильтром могут выглядеть иначе после обновления до 0.8.3.
 Splat Scale: размер отдельных карточек без перемещения центров; обычно 1. Слишком много — размытие, мало — отверстия.
 Maximum Splats: ТОТ ЖЕ лимит, что Import Quality. 0 — Full Source; произвольное число отображается как CUSTOM. Это не второе независимое ограничение.
 Minimum Opacity (Reload): отбрасывает почти прозрачные записи при чтении. Обычно 1/255; меньше сохраняет слабые детали ценой памяти/рендера.
@@ -330,9 +356,23 @@ Support the author - Boosty: добровольная поддержка по в
 
 Долго грузится / мало памяти: уменьшите Import Quality. Оценка RAM приблизительна и не гарантирует достаточную VRAM. Cancel сохраняет предыдущую готовую модель; LOW всё равно читает/проверяет файл.
 
-Нет AI-окружения: Set Up AI / Extra Formats, затем проверьте Status. Видео использует один кадр, это не многоракурсная съёмка.
+Нет окружения: для Image используйте Set Up AI / Extra Formats; для Photos отдельную кнопку Set Up Photos.
 
 Разница с другими просмотрщиками возможна из-за композиции карточек, прозрачности, камеры и управления цветом. Больше сплатов не гарантирует идентичный рендер.""",
+
+"""MULTI-PHOTO SCAN — ОБЩИЙ СКАН ПО НЕСКОЛЬКИМ РАКУРСАМ
+
+Photos Folder — папка со снимками одного неподвижного объекта или места. JPG, PNG, WebP, TIFF и BMP прямо в папке, без подпапок. Минимум 3, максимум 500. Начните с 10–50 резких перекрывающихся ракурсов. Перемещайте камеру, сохраняя объект и освещение неподвижными. Разные объекты, копии, смаз, отражения, прозрачность и отсутствие перекрытия мешают совмещению.
+
+Set Up Photos устанавливает отдельные Python, PyCOLMAP и Brush (примерно 250 МБ). Веса Image не нужны. Определение камер на CPU, коррекция объектива и обучение Gaussian на GPU идут локально. Снимки никуда не отправляются. Brush нужен совместимый GPU и актуальный драйвер; расход памяти зависит от разрешения и числа точек.
+
+Training Colour по умолчанию Redshift - Linear. Камеры определяются по обычным изображениям; обучение использует линейные 16-битные копии без потерь для корректного смешивания в Redshift. Для обычных внешних просмотрщиков выберите Splat Viewers - sRGB. Старый sRGB-скан нужно пересчитать, чтобы изменить модель цвета. Цветовое пространство и профиль гауссиан записываются в PLY.
+
+Training Steps по умолчанию 30 000. Maximum Gaussians по умолчанию 1 000 000 — верхний предел, а не обещанное число точек. Photo Resolution — длинная сторона рабочих копий; оригиналы не меняются. Начните со стандартных настроек и Reconstruct from Photos. Во время обучения отображаются прошедшее время и заданное число шагов, а не выдуманный процент.
+
+Cancel Processing останавливает процессы и сохраняет предыдущий скан. Каждый результат — в новой папке. Готовый PLY импортируется автоматически, если выбор исходников не изменился. alignment.json перечисляет использованные и пропущенные снимки: совместиться должны минимум 60% и минимум 3. Пропуски могут оставить дыры. generation.json содержит оценённую камеру одного ракурса; масштаб условный. Переносите его рядом с PLY. Для повторного расчёта сохраните папку оригинальных фотографий отдельно.
+
+Captured View (0 = первый), затем Use Captured Camera создаёт и включает камеру выбранного отснятого ракурса. Храните capture-cameras.json и generation.json рядом с PLY. Старые результаты могут содержать только одну камеру. Снимайте все нужные стороны: дополнительные шаги не восстанавливают невидимую крышу или обратную сторону. Новые значения по умолчанию применяются к новым объектам; существующий PLY нужно пересчитать, чтобы получить пользу от дополнительного обучения. Рост числа точек заканчивается до завершения обучения, оставляя этап уточнения."""
 )
 
 

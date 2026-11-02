@@ -35,11 +35,10 @@ licenses/. These notices do not relicense upstream materials.
 Dependencies include PyTorch, Torchvision, NumPy, Pillow, safetensors, tqdm, and huggingface_hub;
 their respective licenses are installed with their Python packages.
 
-Video input uses PyAV 16.0.1 (BSD-3-Clause), installed separately into the local
-runtime from PyPI: https://pypi.org/project/av/16.0.1/ . PyAV's Windows wheel
-includes FFmpeg libraries subject to their own terms. This source archive
-does not redistribute the wheel or those binaries. Installed license notices
-are retained in the runtime package. Source: https://github.com/PyAV-Org/PyAV .
+## Photos reconstruction
+
+Set Up Photos downloads Brush 0.3.0 from its official release and checks the pinned SHA-256. Its original LICENSE, README and CHANGELOG remain beside the executable. Brush uses Apache-2.0: https://github.com/ArthurBrussee/brush/tree/v0.3.0 .
+PyCOLMAP 4.2.1 is installed with its wheel's license bundle: https://pypi.org/project/pycolmap/4.2.1/ . COLMAP uses BSD-3-Clause; third-party components retain their own notices. NumPy 2.2.6 and Pillow 11.3.0 retain their package licenses. These Photos binaries are not included in the plugin ZIP.
 
 ## Private Python bootstrap
 
@@ -79,11 +78,7 @@ PyTorch's BSD-3-Clause label does not cover every bundled component. Its wheel
 contains a long LICENSE and NOTICE, including NVIDIA component terms. NumPy,
 Pillow, CPython, Node.js, pip and setuptools also contain third-party components.
 Keep their complete license bundles; do not replace them with this project's MIT
-license. The PyAV Windows runtime examined for this release reports FFmpeg
-LGPL-3.0-or-later. Binary build flags also list x264/x265; the report is not an
-independent validation of the upstream codec build's licensing. We do not
-redistribute those DLLs or promise a complete corresponding-source offer for them.
-See https://ffmpeg.org/legal.html before redistributing a preinstalled runtime.
+license.
 
 See `../LICENSE_SCOPE.md` for distribution boundaries, model-use restrictions
 and voluntary support. The release's `docs/licenses/` directory records installed

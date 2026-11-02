@@ -12,16 +12,18 @@ class Cancelled(Exception):
 def view_key(value):
     """Ignore host matrix round-trip noise in cache keys, not in calculations.
 
-    Twelve significant digits retain real camera/lens changes. Vectors share
-    a scale so near-zero components tolerate the same round-off as their axes;
-    tiny inverse object-scale bases remain nonzero. User controls and source
-    identifiers do not pass through this function.
+    Tiny basis vectors share their scale so numerical zero stays zero without
+    erasing inverse object-scale axes. Cap that shared scale at one unit: an
+    absolute coordinate origin must not coarsen the other camera components.
+    Larger components retain fifteen significant digits to suppress their own
+    final floating-point digits without losing ordinary motion far from zero.
+    User controls and source identifiers do not pass through this function.
     """
     if isinstance(value, (tuple, list)):
         if value and all(isinstance(v, (int, float)) and math.isfinite(v) for v in value):
-            magnitude = max(abs(v) for v in value)
+            magnitude = min(1., max(abs(v) for v in value))
             digits = 11 - math.floor(math.log10(magnitude)) if magnitude else 12
-            return tuple(round(v, digits) for v in value)
+            return tuple(float(format(round(v, digits), '.15g')) for v in value)
         return tuple(view_key(v) for v in value)
     if isinstance(value, float) and math.isfinite(value):
         return float(format(value, '.12g'))
@@ -37,7 +39,7 @@ def preparation_keys(source_key, values, camera, has_sh, color_config):
                           tuple(sorted((key, view_key(value)) for key, value in projection.items())))
     spatial = (source_key, tuple(values[k] for k in
         ('scale', 'splat_scale', 'flip_y', 'camera_facing', 'smoothing')) +
-        (bool(values.get('compact_cards', False)),), spatial_camera)
+        (bool(values.get('compact_cards', False)), int(values.get('gaussian_profile', 0))), spatial_camera)
     degree = effective_degree(values, has_sh)
     direction_override = values.get('sh_direction')
     if direction_override is None and projection and projection.get('orthographic'):
@@ -70,16 +72,31 @@ def non_view_key(request):
             request['weights'], request['material'])
 
 
+def view_only_request(request, ready_key):
+    """Classify a changed view against a published request, for status only."""
+    if ready_key is None or request['key'] == ready_key:
+        return False
+    previous = dict(zip(('spatial_key', 'color_key', 'opacity', 'weights', 'material'), ready_key))
+    return (request['source_key'] == previous['spatial_key'][0] and
+            non_view_key(request) == non_view_key(previous))
+
+
 class Preparation:
     """One immutable request; results become visible only after completion."""
     def __init__(self, request, cloud=None, spatial=None, colors=None, bounds=None):
         self.request = request
         self.cloud, self.spatial, self.colors, self.bounds = cloud, spatial, colors, bounds
+        # Live owners supply document-working colours; a cancelled worker can
+        # also supply completed source-space colours. Preserve that distinction
+        # so a retarget neither reevaluates them nor skips OCIO conversion.
+        self.colors_are_working = bool(colors is not None and request.get('colors_are_working', True))
         self.cancelled = threading.Event()
         self.done = threading.Event()
         self.result = None
         self.error = None
-        self.status = ('Starting scan preparation', 0.)
+        self.view_only = bool(request.get('view_only') and cloud is not None)
+        self.status = ('Updating camera view — source reused' if self.view_only else
+                       'Starting scan preparation', 0.)
         self.started = time.perf_counter()
         self.timings = {}
         self.phase = 'reading'
@@ -117,7 +134,13 @@ class Preparation:
         else:
             start, end = .70, .80
         amount = max(self.status[1], start+(end-start)*min(1., fraction))
-        self.status = ('{}: {:,} / {:,}'.format(stage, completed, total), amount)
+        # Keep the original stage for progress ranges and cancellation. Only
+        # its display label distinguishes required view arithmetic from import.
+        label = ({'Prepare geometry': 'Project Gaussians for camera',
+                  'Prepare colour': 'Update view-dependent colour',
+                  'Select visible cards': 'Update visible cards'}.get(stage, stage)
+                 if self.view_only else stage)
+        self.status = ('{}: {:,} / {:,}'.format(label, completed, total), amount)
 
     def start(self):
         self.thread.start()
@@ -169,28 +192,37 @@ class Preparation:
             if spatial is None:
                 spatial_camera = request['camera'] if request['values']['camera_facing'] else (0.,0.,-500.)
                 spatial = geometry.prepare_geometry(cloud, request['values'], spatial_camera, self.progress)
-                low, high = [float('inf')]*3, [float('-inf')]*3
-                for index, (p,u,v) in enumerate(zip(*spatial[:3])):
-                    if index % 2048 == 0:
-                        self.check()
-                    for axis in range(3):
-                        extent = abs(u[axis])+abs(v[axis])
-                        low[axis] = min(low[axis], p[axis]-extent)
-                        high[axis] = max(high[axis], p[axis]+extent)
-                bounds = [((lo+hi)*.5,max(.01,(hi-lo)*.5)) for lo,hi in zip(low,high)]
+                from . import fast_geometry
+                bounds = fast_geometry.spatial_bounds(spatial, self.progress)
+                if bounds is None:
+                    low, high = [float('inf')]*3, [float('-inf')]*3
+                    for index, (p,u,v) in enumerate(zip(*spatial[:3])):
+                        if index % 2048 == 0:
+                            self.check()
+                        for axis in range(3):
+                            extent = abs(u[axis])+abs(v[axis])
+                            low[axis] = min(low[axis], p[axis]-extent)
+                            high[axis] = max(high[axis], p[axis]+extent)
+                    bounds = [((lo+hi)*.5,max(.01,(hi-lo)*.5)) for lo,hi in zip(low,high)]
+            # A later stage may be cancelled when the camera moves. Keep only
+            # complete stages for restart_view; partially populated local
+            # arrays are never exposed to the next worker.
+            self.spatial, self.bounds = spatial, bounds
             self.timings['geometry_seconds'] = time.perf_counter()-start
             start = time.perf_counter()
             colors = self.colors
             if colors is None:
                 colors = geometry.prepare_colors(cloud, request['values'], request['camera'], spatial[0], self.progress)
+            self.colors = colors
             self.timings['color_seconds'] = time.perf_counter()-start
             start = time.perf_counter()
             indices = geometry.card_indices(spatial, request['values'].get('compact_cards', False), self.progress)
             self.timings['visibility_seconds'] = time.perf_counter()-start
             self.check()
-            self.status = ('Data ready; preparing Cinema 4D geometry', .80)
+            self.status = ('View data ready; updating Cinema 4D geometry' if self.view_only else
+                           'Data ready; preparing Cinema 4D geometry', .80)
             self.result = dict(cloud=cloud, spatial=spatial, colors=colors, bounds=bounds,
-                               colors_are_working=self.colors is not None, analysis=analysis,
+                               colors_are_working=self.colors_are_working, analysis=analysis,
                                card_indices=indices)
         except BaseException as error:
             # Traceback frames can retain the entire partially loaded reservoir

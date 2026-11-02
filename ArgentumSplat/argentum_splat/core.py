@@ -605,6 +605,10 @@ def _load_binary_gaussians(stream, vertex, endian, sampler, rest_count):
     decode.appearance = appearance
     decode.opacity = lambda record: _sigmoid(alpha_read(record)[0])
     decode.validated_records = True
+    # Optional numeric acceleration can view the validated immutable records
+    # without expanding millions of Python Splat objects. Indices refer to
+    # scalar fields, preserving source precision, order and byte order.
+    decode.numpy_layout = (codec.format, xyz, dc, scales_ix, rotation_ix, rest_ix, opacity_ix)
 
     return decode
 
@@ -618,6 +622,18 @@ def _load_ply(stream, sampler, requested_space, point_radius):
     vertex = next((e for e in elements if e.name == "vertex"), None)
     if vertex is None:
         raise SplatFormatError("PLY has no vertex element.")
+    # Follow producer header order, as PlayCanvas does. A converted 2DGS SOG
+    # intentionally omits scale_2; that is an unsupported model, not corruption.
+    model = "default"
+    for comment in comments:
+        match = re.fullmatch(r"SplatRenderMode:\s*(default|mip|2dgs)", comment, re.I)
+        if match:
+            model = match.group(1).lower()
+        elif re.fullmatch(r"antialiased\s+[01]", comment, re.I):
+            model = "mip" if comment[-1] == "1" else "default"
+    if model == "2dgs":
+        raise SplatFormatError("2D Gaussian Splatting (2DGS) is not supported. "
+                               "Import a model trained as 3D Gaussian Splatting (3DGS).")
     gaussian, props, rest_count = _vertex_schema(vertex, point_radius)
     declared_spaces = []
     for comment in comments:
